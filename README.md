@@ -1,10 +1,10 @@
-# 2FA Implementation Guide for PennyPusher
+# Django Lokdown - Two-Factor Authentication (2FA) System
 
-This guide explains how to use the new Two-Factor Authentication (2FA) system implemented for your PennyPusher application.
+A comprehensive Django application providing robust Two-Factor Authentication (2FA) with support for TOTP and WebAuthn Passkeys.
 
 ## Overview
 
-The 2FA system supports two authentication methods:
+The Django Lokdown 2FA system supports two authentication methods:
 1. **TOTP (Time-based One-Time Password)** - Compatible with authenticator apps like Google Authenticator, Authy, etc.
 2. **WebAuthn Passkeys** - Modern passwordless authentication using WebAuthn standard, compatible with:
    - YubiKeys and other hardware security keys
@@ -12,6 +12,47 @@ The 2FA system supports two authentication methods:
    - Google Password Manager
    - Windows Hello
    - Any WebAuthn-compliant authenticator
+
+## Project Structure
+
+```
+django-lokdown/
+├── configuration/           # Django project settings
+│   ├── settings.py         # Main configuration
+│   ├── urls.py            # URL routing
+│   └── wsgi.py            # WSGI application
+├── lokdown/               # Main 2FA application
+│   ├── admin.py           # Django admin interface
+│   ├── admin_auth.py      # Admin authentication logic
+│   ├── admin_url_override.py  # Admin URL customization
+│   ├── apps.py            # Django app configuration
+│   ├── models.py          # Database models
+│   ├── serializers.py     # DRF serializers
+│   ├── urls.py           # Application URLs
+│   ├── views.py          # API views
+│   ├── control/          # Authentication controllers
+│   │   ├── backup_code_controller.py
+│   │   ├── passkey_controller.py
+│   │   ├── token_views.py
+│   │   └── totp_controller.py
+│   ├── helpers/          # Utility helpers
+│   │   ├── backup_codes_helper.py
+│   │   ├── common_helper.py
+│   │   ├── passkey_helper.py
+│   │   ├── session_helper.py
+│   │   ├── totp_helper.py
+│   │   └── twofa_helper.py
+│   ├── management/       # Django management commands
+│   │   └── commands/
+│   │       └── security_audit.py
+│   ├── migrations/       # Database migrations
+│   ├── static/          # Static files (CSS, JS)
+│   └── templates/       # HTML templates
+├── tester/              # Test application
+├── manage.py           # Django management script
+├── requirements.txt    # Python dependencies
+└── pyproject.toml     # Project metadata
+```
 
 ## Recent Admin Authentication Improvements
 
@@ -233,7 +274,7 @@ return redirect('/api/admin/backup-codes/display')
 {
     "challenge": "base64_encoded_challenge",
     "rp_id": "localhost",
-    "rp_name": "PennyPusher",
+    "rp_name": "Django Lokdown",
     "user_id": "1",
     "user_name": "username",
     "user_display_name": "John Doe",
@@ -521,19 +562,267 @@ The WebAuthn implementation supports all modern passkey authenticators:
 ## Configuration
 
 ### Environment Variables
-Add these to your Django settings:
+The following environment variables can be configured in your Django settings:
 
 ```python
-# WebAuthn Configuration
-WEBAUTHN_RP_ID = 'localhost'  # Your domain
-WEBAUTHN_RP_NAME = 'PennyPusher'  # Your application name
+# Database Configuration
+LOCAL_DB=True  # Use SQLite for local development
+DB_NAME=your_db_name
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_HOST=your_db_host
+DB_PORT=your_db_port
 
-# 2FA Settings
-TOTP_ISSUER = 'PennyPusher'  # TOTP issuer name
-BACKUP_CODES_COUNT = 8  # Number of backup codes to generate
-LOGIN_SESSION_TIMEOUT = 10  # Minutes until session expires
+# Security Settings
+SECRET_KEY=your_secret_key
+DEBUG=True  # Set to False in production
+ALLOWED_HOSTS=*  # Configure for production
+
+# CSRF Settings
+DJANGO_CSRF_TRUSTED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+DJANGO_CSRF_COOKIE_DOMAIN=yourdomain.com
+
+# WebAuthn Configuration
+WEBAUTHN_RP_ID=localhost  # Your domain
+WEBAUTHN_RP_NAME=Lokdown Local  # Your application name
+WEBAUTHN_ORIGIN=http://localhost:8000  # Your origin
+
+# 2FA Configuration
+BACKUP_CODE_RATE_LIMIT=10  # Rate limiting for backup codes (attempts per minute)
+TWOFA_SESSION_TIMEOUT=10  # Session timeout for 2FA verification (minutes)
+BACKUP_CODES_COUNT=8  # Number of backup codes to generate
+BACKUP_CODE_LENGTH=10  # Backup code length (characters)
+ADMIN_2FA_REQUIRED=True  # Require 2FA for admin users
+```
+
+### Django Settings Configuration
+
+The application includes several non-default Django settings:
+
+#### **Security Settings**
+```python
+# SSL/HTTPS Settings (disabled by default for development)
+SECURE_SSL_REDIRECT = False
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
+SECURE_HSTS_SECONDS = 60
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# Session Configuration
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
+```
+
+#### **REST Framework Configuration**
+```python
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
+    'DEFAULT_FORMAT_SUFFIXES': ['json'],  # Only allow JSON format
+    'DEFAULT_VERSIONING_CLASS': None,  # Disable versioning
+    'URL_FORMAT_OVERRIDE': None,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+    },
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
+}
+```
+
+#### **JWT Configuration**
+```python
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=5),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+```
+
+#### **API Documentation (Spectacular)**
+```python
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Django Lokdown',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'CAMELIZE_NAMES': False,
+    'SORT_OPERATIONS': False,
+    'SORT_TAGS': True,
+    'DISABLE_ERRORS_AND_WARNINGS': True,
+    'CONTACT': {
+        'name': 'Loknus Labs LLC',
+        'email': 'loknuslabs@gmail.com',
+        'url': 'https://loknuslabs.io',
+    },
+    'LICENSE': {
+        'name': 'GNU General Public License v3.0',
+        'url': 'https://www.gnu.org/licenses/gpl-3.0.html',
+    },
+}
 ```
 
 ### Dependencies
-The following packages are required:
-- `
+
+The following packages are required (see `requirements.txt`):
+
+#### **Core Dependencies**
+- `Django>=4.2.3`
+- `djangorestframework`
+- `djangorestframework-simplejwt`
+- `django-cors-headers`
+- `drf-spectacular`
+
+#### **2FA Dependencies**
+- `pyotp` - For TOTP generation and verification
+- `webauthn` - For WebAuthn passkey support
+- `qrcode` - For QR code generation
+- `Pillow` - For image processing
+
+#### **Database Dependencies**
+- `mysqlclient` - For MySQL database support (optional)
+- `sqlite3` - Built-in SQLite support
+
+#### **Development Dependencies**
+- `pytest-django` - For testing
+- `black` - For code formatting
+- `flake8` - For linting
+
+## Installation
+
+### Installing in Your Django Project
+
+1. **Add to requirements.txt:**
+```txt
+# requirements.txt
+Django>=4.2.3
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+drf-spectacular
+django-lokdown  # Add this line
+pyotp
+webauthn
+qrcode
+Pillow
+```
+
+2. **Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+3. **Add to INSTALLED_APPS in your Django settings:**
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'lokdown',  # Add this line
+    # ... your other apps
+]
+```
+
+4. **Include the URLs in your main urls.py:**
+```python
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/', include('lokdown.urls')),  # Add this line
+    # ... your other URL patterns
+]
+```
+
+5. **Configure environment variables in your Django settings:**
+```python
+# WebAuthn Configuration
+WEBAUTHN_RP_ID = 'yourdomain.com'  # Your domain
+WEBAUTHN_RP_NAME = 'Your App Name'  # Your application name
+WEBAUTHN_ORIGIN = 'https://yourdomain.com'  # Your origin
+
+# 2FA Configuration
+BACKUP_CODE_RATE_LIMIT = 10  # Rate limiting for backup codes
+TWOFA_SESSION_TIMEOUT = 10  # Session timeout for 2FA verification (minutes)
+BACKUP_CODES_COUNT = 8  # Number of backup codes to generate
+BACKUP_CODE_LENGTH = 10  # Backup code length (characters)
+ADMIN_2FA_REQUIRED = True  # Require 2FA for admin users
+```
+
+6. **Run migrations:**
+```bash
+python manage.py migrate
+```
+
+7. **Optional: Customize admin interface (recommended):**
+```python
+# In your Django settings
+ADMIN_SITE_HEADER = "Your App Admin"
+ADMIN_SITE_TITLE = "Your App Administration"
+ADMIN_INDEX_TITLE = "Welcome to Your App Administration"
+```
+
+### Development Installation
+
+If you want to contribute to the library:
+
+1. **Clone the repository:**
+```bash
+git clone https://github.com/your-username/django-lokdown.git
+cd django-lokdown
+```
+
+2. **Install in development mode:**
+```bash
+pip install -e .
+```
+
+3. **Install development dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+4. **Configure environment variables:**
+```bash
+export WEBAUTHN_RP_ID="localhost"
+export WEBAUTHN_RP_NAME="Django Lokdown"
+export LOCAL_DB="True"
+```
+
+5. **Run migrations:**
+```bash
+python manage.py migrate
+```
+
+6**Run the development server:**
+```bash
+python manage.py runserver
+```
+
+**Note:** This development setup is only needed if you want to contribute to the library. For regular usage, just follow the "Installing in Your Django Project" steps above.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0. See the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Support
+
+For support, email loknuslabs@gmail.com or visit https://loknuslabs.io.
