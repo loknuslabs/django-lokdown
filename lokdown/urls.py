@@ -18,10 +18,10 @@ from .control.token_views import CustomTokenObtainPairView
 class TaggedTokenRefreshView(TokenRefreshView):
     pass
 
+
 urlpatterns = [
     path('api/token', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh', TaggedTokenRefreshView.as_view(), name='token_refresh'),
-
     # 2FA-enabled login endpoints
     path('auth/login', views.login_init, name='login_init'),
     path('auth/verify', views.login_verify, name='login_verify'),

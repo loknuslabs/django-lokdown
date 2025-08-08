@@ -19,6 +19,7 @@ from lokdown.admin_url_override import override_admin_urls
 class TaggedTokenRefreshView(TokenRefreshView):
     pass
 
+
 def index(request):
     # Adjust this URL to match the URL pattern for your Swagger documentation
     swagger_url = '/api/schema/swagger-ui/'  # This should be the URL where Swagger UI is served
@@ -26,6 +27,7 @@ def index(request):
     return HttpResponse(
         f'Penny Pusher (v{VERSION})<br><br>' f'<a href="{swagger_url}" target="_blank">Go to API Documentation</a>'
     )
+
 
 urlpatterns = [
     path("", index, name="home"),
