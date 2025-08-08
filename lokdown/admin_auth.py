@@ -713,11 +713,11 @@ def admin_current_user_backup_codes(request):
     if request.method == 'POST':
         # User has acknowledged the backup codes - redirect to PasskeyCredential admin
         messages.success(request, '2FA setup completed successfully!')
-        return redirect('admin:security_passkeycredential_changelist')
+        return redirect('admin:lokdown_passkeycredential_changelist')
 
     if not has_backup_codes(user):
         messages.error(request, 'No backup codes found. Please complete 2FA setup first.')
-        return redirect('admin:security_usertwofactorauth_changelist')
+        return redirect('admin:lokdown_usertwofactorauth_changelist')
 
     backup_codes_obj = get_or_create_backup_codes(user)
     backup_codes = backup_codes_obj.codes
@@ -741,7 +741,7 @@ def admin_backup_codes_display(request):
 
     if not regenerated_codes:
         messages.error(request, 'No regenerated backup codes found.')
-        return redirect('admin:security_backupcodes_changelist')
+        return redirect('admin:lokdown_backupcodes_changelist')
 
     codes_count = len(regenerated_codes)
 

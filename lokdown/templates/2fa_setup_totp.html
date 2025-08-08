@@ -176,7 +176,7 @@
         <h3>Step 2: Verify Setup</h3>
         <p>Enter the 6-digit code from your authenticator app to verify the setup. After verification, you'll receive backup codes to save securely.</p>
         
-        <form method="post" action="{% if is_current_user %}{% url 'admin_current_user_totp_setup' %}{% else %}{% url 'admin_2fa_verify_totp' %}{% endif %}">
+        <form method="post" action="{% if is_current_user %}{% url 'admin_current_user_totp_setup' %}{% else %}{% url 'admin:admin_2fa_verify_totp' %}{% endif %}">
             {% csrf_token %}
             <input type="hidden" name="secret" value="{{ secret }}">
             <input type="hidden" name="qr_code" value="{{ qr_code }}">
@@ -192,9 +192,9 @@
     </div>
     
     {% if is_current_user %}
-        <p><a href="{% url 'admin:security_usertimebasedonetimepasswords_changelist' %}" style="color: #007cba;">← Back to 2FA Management</a></p>
+        <p><a href="{% url 'admin:lokdown_usertimebasedonetimepasswords_changelist' %}" style="color: #007cba;">← Back to 2FA Management</a></p>
     {% else %}
-        <p><a href="{% url 'admin_2fa_setup' %}" style="color: #007cba;">← Back to setup options</a></p>
+        <p><a href="{% url 'admin:admin_2fa_setup' %}" style="color: #007cba;">← Back to setup options</a></p>
     {% endif %}
 </div>
 {% endblock %} 

@@ -187,7 +187,7 @@
     
     <!-- Show setup option if no methods are available or if user might be stuck -->
     {% if available_methods|length == 0 or available_methods|length == 1 and 'backup' in available_methods %}
-    <div class="verify-method" onclick="window.location.href='{% url 'admin_2fa_setup' %}'">
+            <div class="verify-method" onclick="window.location.href='{% url 'admin:admin_2fa_setup' %}'">
         <h3>⚙️ Complete 2FA Setup</h3>
         <p>It looks like your 2FA setup may be incomplete. Click here to complete the setup process.</p>
     </div>
@@ -264,7 +264,7 @@ function selectMethod(method) {
 async function authenticateWithPasskey() {
     try {
         // Get authentication options from server
-        const response = await fetch('{% url "security:admin_2fa_auth_options" %}', {
+        const response = await fetch('{% url "admin:admin_2fa_auth_options" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

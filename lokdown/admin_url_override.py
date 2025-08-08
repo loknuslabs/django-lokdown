@@ -17,7 +17,7 @@ from .admin_auth import (
 
 def redirect_usertwofactorauth(request):
     """Redirect usertwofactorauth/ to the correct model admin"""
-    return redirect('admin:security_usertimebasedonetimepasswords_changelist')
+    return redirect('admin:lokdown_usertimebasedonetimepasswords_changelist')
 
 
 def get_admin_urls():

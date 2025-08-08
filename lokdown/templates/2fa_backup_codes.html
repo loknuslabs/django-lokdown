@@ -232,7 +232,7 @@
         </ul>
     </div>
     
-    <form method="post" action="{% if is_current_user %}{% url 'admin_current_user_backup_codes' %}{% else %}{% url 'admin_2fa_backup_codes' %}{% endif %}">
+            <form method="post" action="{% if is_current_user %}{% url 'admin_current_user_backup_codes' %}{% else %}{% url 'admin:admin_2fa_backup_codes' %}{% endif %}">
         {% csrf_token %}
         <button type="submit" class="btn-primary">
             {% if is_current_user %}
