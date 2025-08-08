@@ -10,7 +10,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_ratelimit.decorators import ratelimit
-
 from .helpers.backup_codes_helper import has_backup_codes, get_or_create_backup_codes
 from .helpers.passkey_helper import has_passkey_enabled
 from .helpers.session_helper import get_session
@@ -48,8 +47,8 @@ def login_init(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    username = serializer.validated_data['username']
-    password = serializer.validated_data['password']
+    username = serializer.validated_data.get('username')
+    password = serializer.validated_data.get('password')
 
     # Authenticate user
     user = authenticate(username=username, password=password)

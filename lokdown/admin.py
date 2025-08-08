@@ -2,13 +2,13 @@ from datetime import timedelta
 from django.contrib import admin
 from django.contrib.admin import SimpleListFilter
 from django.utils import timezone
-
 from .helpers.backup_codes_helper import generate_backup_codes
 from .models import *
 from django.utils.safestring import mark_safe
+from django.shortcuts import redirect
 
 
-# Custom filters for lokdown monitoring
+# Custom filters for security monitoring
 class RecentActivityFilter(SimpleListFilter):
     title = 'Recent Activity'
     parameter_name = 'recent_activity'
@@ -96,36 +96,16 @@ class UserTwoFactorAuthAdmin(admin.ModelAdmin):
     reset_backup_codes.short_description = "Regenerate backup codes for selected users"
 
     def export_security_report(self, request):
-        # This would generate a CSV report of lokdown status
+        # This would generate a CSV report of security status
         self.message_user(request, 'Security report export feature would be implemented here.')
 
-    export_security_report.short_description = "Export lokdown report"
+    export_security_report.short_description = "Export security report"
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('user')
 
     def add_view(self, request, form_url='', extra_context=None):
-        """Override add view to redirect to original admin TOTP setup only if 2FA is required"""
-        from django.shortcuts import redirect
-        from django.conf import settings
-
-        # Only redirect to TOTP setup if 2FA is required for admins
-        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
-            return redirect('admin_current_user_totp_setup')
-        else:
-            # If 2FA is not required, use the default add view
-            return super().add_view(request, form_url, extra_context)
-
-    def has_add_permission(self, request):
-        """Allow adding TOTP via the setup flow only if 2FA is required"""
-        from django.conf import settings
-
-        # Only allow adding via setup flow if 2FA is required
-        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
-            return True
-        else:
-            # If 2FA is not required, use default permission
-            return super().has_add_permission(request)
+        return redirect('admin_current_user_totp_setup')
 
     def has_change_permission(self, request, obj=...):
         return False
@@ -185,21 +165,9 @@ class PasskeyCredentialAdmin(admin.ModelAdmin):
         return super().get_queryset(request).select_related('user')
 
     def add_view(self, request, form_url='', extra_context=None):
-        """Override add view to redirect to original admin TOTP setup only if 2FA is required"""
-        from django.shortcuts import redirect
-        from django.conf import settings
-
-        # Only redirect to TOTP setup if 2FA is required for admins
-        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
-            return redirect('admin_current_user_passkey_setup')
-        else:
-            # If 2FA is not required, use the default add view
-            return super().add_view(request, form_url, extra_context)
+        return redirect('admin_current_user_passkey_setup')
 
     def setup_passkey_for_current_user(self):
-        """Setup passkey for the current admin user"""
-        from django.shortcuts import redirect
-
         return redirect('admin_current_user_passkey_setup')
 
     setup_passkey_for_current_user.short_description = "Setup passkey for current admin user"
@@ -339,17 +307,17 @@ class FailedBackupCodeAttemptAdmin(admin.ModelAdmin):
     time_ago.short_description = 'Time Ago'
 
     def block_ip_addresses(self, request, queryset):
-        # This would integrate with your firewall/lokdown system
+        # This would integrate with your firewall/security system
         unique_ips = queryset.values_list('ip_address', flat=True).distinct()
         self.message_user(request, f'Would block {len(unique_ips)} IP addresses: {", ".join(unique_ips)}')
 
     block_ip_addresses.short_description = "Block IP addresses (integration needed)"
 
     def export_security_log(self, request):
-        # This would generate a lokdown log export
+        # This would generate a security log export
         self.message_user(request, 'Security log export feature would be implemented here.')
 
-    export_security_log.short_description = "Export lokdown log"
+    export_security_log.short_description = "Export security log"
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('user')

@@ -1,3 +1,4 @@
+django-qrcode
 asgiref==3.9.1
 certifi==2025.8.3
 charset-normalizer==3.4.2
@@ -24,3 +25,4 @@ django-celery-beat==2.8.1
 pyotp==2.9.0
 qrcode==8.2
 webauthn==2.6.0
+Pillow==11.3.0
