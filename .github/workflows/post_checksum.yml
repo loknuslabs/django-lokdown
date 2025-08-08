@@ -1,0 +1,31 @@
+name: Post New Image Checksum
+
+on:
+  workflow_call:
+    inputs:
+      build_id:
+        required: true
+        type: string
+      checksum:
+        required: true
+        type: string
+    secrets:
+      PP_ADMIN_API_KEY:
+        required: true
+
+jobs:
+  post_checksum:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add Checksum to Build
+        run: |
+          curl -X POST https://api.pennypusher.net/api/v1/github/build/checksum/new/ \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Api-Key ${{ secrets.PP_ADMIN_API_KEY }}" \
+          -d "$(jq -n \
+            --arg build_id "${{ inputs.build_id }}" \
+            --arg checksum "${{ inputs.checksum }}" \
+            '{
+              build: $build_id,
+              checksum: $checksum
+            }')"

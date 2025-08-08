@@ -1,0 +1,119 @@
+name: Promote PennyPusher-Services to Stable
+
+on:
+  push:
+    branches:
+      - stable
+
+jobs:
+  promote_stable:
+    name: Promote Beta Docker Image to Stable
+    runs-on: ubuntu-latest
+    environment: stable
+    outputs:
+      version: ${{ steps.extract_version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Extract version from settings.py
+        id: extract_version
+        run: |
+          VERSION=$(grep -Po "(?<=^VERSION = ')[^']*" configuration/settings.py)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Pull beta image
+        run: |
+          docker pull ghcr.io/${{ github.repository }}:${{ env.VERSION }}_beta
+
+      - name: Tag image as stable
+        run: |
+          docker tag ghcr.io/${{ github.repository }}:${{ env.VERSION }}_beta ${{ secrets.DOCKER_USERNAME }}/pennypusher-services:${{ env.VERSION }}_stable
+          docker tag ghcr.io/${{ github.repository }}:${{ env.VERSION }}_beta ${{ secrets.DOCKER_USERNAME }}/pennypusher-services:latest
+          docker tag ghcr.io/${{ github.repository }}:${{ env.VERSION }}_beta ghcr.io/${{ github.repository }}:${{ env.VERSION }}_stable
+
+      - name: Push promoted tags
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/pennypusher-services:${{ env.VERSION }}_stable
+          docker push ${{ secrets.DOCKER_USERNAME }}/pennypusher-services:latest
+          docker push ghcr.io/${{ github.repository }}:${{ env.VERSION }}_stable
+
+  create_release:
+    name: Create Stable Release
+    needs: promote_stable
+    runs-on: ubuntu-latest
+    outputs:
+      changelog: ${{ steps.build_changelog.outputs.changelog }}
+      release_link: ${{ steps.build_release_link.outputs.release_link }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get latest stable tag
+        id: get_latest_stable
+        run: |
+          LATEST_STABLE=$(git tag -l "*_stable" --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_STABLE" ]; then
+            echo "No previous stable tag found, using initial commit"
+            echo "fromTag=HEAD" >> $GITHUB_OUTPUT
+          else
+            echo "fromTag=$LATEST_STABLE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Changelog
+        id: build_changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        with:
+          fromTag: ${{ steps.get_latest_stable.outputs.fromTag }}
+          toTag: ${{ needs.promote_stable.outputs.version }}_stable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release with changelog
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.promote_stable.outputs.version }}_stable
+          name: Stable Release ${{ needs.promote_stable.outputs.version }}
+          body: ${{ steps.build_changelog.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set release link
+        id: build_release_link
+        run: |
+          echo "release_link=https://github.com/${{ github.repository }}/releases/tag/${{ needs.promote_stable.outputs.version }}_stable" >> $GITHUB_OUTPUT
+
+  notify:
+    name: Notify Discord Stable Release Channel
+    uses: ./.github/workflows/discord_notify.yml
+    needs: [promote_stable, create_release]
+    with:
+      version_number: ${{ needs.promote_stable.outputs.version }}
+      release_link: ${{ needs.create_release.outputs.release_link }}
+      release_notes: ${{ needs.create_release.outputs.changelog }}
+      track: "stable"
+      platform: "docker"
+      deployment_type: "self_hosted"
+      component: "server"
+      link: "https://hub.docker.com/r/${{ secrets.DOCKER_USERNAME }}/pennypusher-services/tags?name=${{ needs.promote_stable.outputs.version }}_stable"
+    secrets:
+      PP_ADMIN_API_KEY: ${{ secrets.PP_ADMIN_API_KEY }}
+      X_GITHUB_BYPASS_TOKEN: ${{ secrets.X_GITHUB_BYPASS_TOKEN }}

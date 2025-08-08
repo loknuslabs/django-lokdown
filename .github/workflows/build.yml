@@ -1,0 +1,82 @@
+name: Build and Push PennyPusher-Services to GCR
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    environment: development
+    outputs:
+      version: ${{ steps.extract_version.outputs.version }}
+      app_checksum: ${{ steps.calculate_checksum.outputs.checksum }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.13
+
+    - name: Extract version from settings.py
+      id: extract_version
+      run: |
+        VERSION=$(grep -Po "(?<=^VERSION = ')[^']*" configuration/settings.py)
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Calculate application checksum
+      id: calculate_checksum
+      run: |
+        python3 -c "from configuration.tamper_prevention import calculate_checksum; print(calculate_checksum())" > checksum.txt
+        CHECKSUM=$(cat checksum.txt)
+        echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    # Log in to GitHub Container Registry (GHCR)
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image for multiple architectures to GHCR
+      run: |
+        docker buildx build --platform linux/amd64,linux/arm64 \
+          -t ghcr.io/${{ github.repository }}:${{ env.VERSION }}_dev \
+          --push .
+
+  notify:
+    name: Notify Discord Dev Channel
+    uses: ./.github/workflows/discord_notify.yml
+    needs: build
+    with:
+      version_number: ${{ needs.build.outputs.version }}
+      release_link: "https://github.com/${{ github.repository }}"
+      release_notes: "New Feature/Bug Fixes"
+      track: "dev"
+      platform: "docker"
+      deployment_type: "self_hosted"
+      component: "server"
+      link: "https://github.com/${{ github.repository }}"
+      checksum: ${{ needs.build.outputs.app_checksum }}
+    secrets:
+      PP_ADMIN_API_KEY: ${{ secrets.PP_ADMIN_API_KEY }}
+      X_GITHUB_BYPASS_TOKEN: ${{ secrets.X_GITHUB_BYPASS_TOKEN }}
+
+  create_beta_pr:
+    name: Create Beta PR
+    uses: ./.github/workflows/auto_environment_pr.yml
+    needs: [build, notify]
+    with:
+      src_branch: 'main'
+      dest_branch: 'beta'

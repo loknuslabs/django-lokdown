@@ -1,0 +1,189 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Setup Two-Factor Authentication{% endblock %}
+
+{% block extrahead %}
+<style>
+    /* Light/Dark mode support */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #e7f3ff;
+        --text-primary: #333333;
+        --text-secondary: #666666;
+        --border-color: #e0e0e0;
+        --border-hover: #007cba;
+        --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        --warning-bg: #fff3cd;
+        --warning-border: #ffeaa7;
+        --warning-text: #856404;
+    }
+
+    /* Dark mode overrides */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-primary: #2b2b2b;
+            --bg-secondary: #3a3a3a;
+            --bg-tertiary: #1e3a5f;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #555555;
+            --border-hover: #4a9eff;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --warning-bg: #3d2c1e;
+            --warning-border: #5d4c3e;
+            --warning-text: #ffd54f;
+        }
+    }
+
+    .setup-container {
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 30px;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        color: var(--text-primary);
+    }
+    
+    .setup-option {
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        padding: 20px;
+        margin: 15px 0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: var(--bg-primary);
+    }
+    
+    .setup-option:hover {
+        border-color: var(--border-hover);
+        background-color: var(--bg-secondary);
+        transform: translateY(-2px);
+    }
+    
+    .setup-option.selected {
+        border-color: var(--border-hover);
+        background-color: var(--bg-tertiary);
+    }
+    
+    .setup-option h3 {
+        margin: 0 0 10px 0;
+        color: var(--text-primary);
+    }
+    
+    .setup-option p {
+        margin: 0;
+        color: var(--text-secondary);
+    }
+    
+    .btn-primary {
+        background-color: var(--border-hover);
+        border-color: var(--border-hover);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 20px;
+    }
+    
+    .btn-primary:hover {
+        background-color: #005a87;
+        border-color: #005a87;
+    }
+    
+    .warning {
+        background-color: var(--warning-bg);
+        border: 1px solid var(--warning-border);
+        color: var(--warning-text);
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-secondary);
+    }
+    
+    .spinner {
+        border: 3px solid var(--border-color);
+        border-top: 3px solid var(--border-hover);
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="setup-container">
+    <h1>Setup Two-Factor Authentication</h1>
+    
+    <div class="warning">
+        <strong>Security Notice:</strong> Two-factor authentication is required for admin access. 
+        Please choose a 2FA method to continue.
+    </div>
+    
+    <p>To access the admin panel, you must set up two-factor authentication. Choose one of the following methods:</p>
+    
+    <form method="post" id="setup-form">
+        {% csrf_token %}
+        
+        <div class="setup-option" onclick="selectOption('totp')">
+            <input type="radio" name="setup_type" value="totp" id="totp" style="display: none;">
+            <h3>📱 Authenticator App (TOTP)</h3>
+            <p>Use an authenticator app like Google Authenticator, Authy, or Microsoft Authenticator. 
+            This is the most common and secure method.</p>
+        </div>
+        
+        <div class="setup-option" onclick="selectOption('passkey')">
+            <input type="radio" name="setup_type" value="passkey" id="passkey" style="display: none;">
+            <h3>🔑 Passkey (WebAuthn)</h3>
+            <p>Use a passkey with your device's built-in security (fingerprint, face ID, or PIN). 
+            Works with YubiKeys, Apple Passwords, Google Password Manager, and more.</p>
+        </div>
+    </form>
+    
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+        <p>Setting up your selected 2FA method...</p>
+    </div>
+</div>
+
+<script>
+function selectOption(type) {
+    // Remove selected class from all options
+    document.querySelectorAll('.setup-option').forEach(option => {
+        option.classList.remove('selected');
+    });
+    
+    // Add selected class to clicked option
+    event.currentTarget.classList.add('selected');
+    
+    // Check the radio button
+    document.getElementById(type).checked = true;
+    
+    // Show loading indicator
+    document.getElementById('loading').style.display = 'block';
+    
+    // Hide the form
+    document.getElementById('setup-form').style.display = 'none';
+    
+    // Automatically submit the form after a brief delay
+    setTimeout(function() {
+        document.getElementById('setup-form').submit();
+    }, 500);
+}
+</script>
+{% endblock %} 

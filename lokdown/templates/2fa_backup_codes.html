@@ -1,0 +1,331 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Backup Codes{% endblock %}
+
+{% block extrahead %}
+<style>
+    /* Light/Dark mode support */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #e7f3ff;
+        --text-primary: #333333;
+        --text-secondary: #666666;
+        --border-color: #e0e0e0;
+        --border-hover: #007cba;
+        --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        --warning-bg: #fff3cd;
+        --warning-border: #ffeaa7;
+        --warning-text: #856404;
+        --success-bg: #d4edda;
+        --success-border: #c3e6cb;
+        --success-text: #155724;
+        --danger-bg: #f8d7da;
+        --danger-border: #f5c6cb;
+        --danger-text: #721c24;
+    }
+
+    /* Dark mode overrides */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-primary: #2b2b2b;
+            --bg-secondary: #3a3a3a;
+            --bg-tertiary: #1e3a5f;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #555555;
+            --border-hover: #4a9eff;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --warning-bg: #3d2c1e;
+            --warning-border: #5d4c3e;
+            --warning-text: #ffd54f;
+            --success-bg: #2d4a2d;
+            --success-border: #4d6a4d;
+            --success-text: #4caf50;
+            --danger-bg: #4a2d2d;
+            --danger-border: #6a4d4d;
+            --danger-text: #ff6b6b;
+        }
+    }
+
+    .setup-container {
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 30px;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        color: var(--text-primary);
+    }
+    
+    .step {
+        margin: 20px 0;
+        padding: 15px;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+    }
+    
+    .step h3 {
+        margin: 0 0 10px 0;
+        color: var(--text-primary);
+    }
+    
+    .btn-primary {
+        background-color: var(--border-hover);
+        border-color: var(--border-hover);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 20px;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    
+    .btn-primary:hover {
+        background-color: #005a87;
+        border-color: #005a87;
+    }
+    
+    .warning {
+        background-color: var(--warning-bg);
+        border: 1px solid var(--warning-border);
+        color: var(--warning-text);
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .success {
+        background-color: var(--success-bg);
+        border: 1px solid var(--success-border);
+        color: var(--success-text);
+        padding: 15px;
+        border-radius: 4px;
+        margin: 20px 0;
+    }
+    
+    .danger {
+        background-color: var(--danger-bg);
+        border: 1px solid var(--danger-border);
+        color: var(--danger-text);
+        padding: 15px;
+        border-radius: 4px;
+        margin: 20px 0;
+    }
+    
+    .backup-codes {
+        background: var(--bg-tertiary);
+        padding: 20px;
+        border-radius: 4px;
+        margin: 20px 0;
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    
+    .backup-codes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+    }
+    
+    .backup-code {
+        background: var(--bg-primary);
+        padding: 8px 12px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        text-align: center;
+        font-weight: bold;
+        font-size: 12px;
+        letter-spacing: 1px;
+    }
+    
+    .copy-button {
+        background-color: var(--text-secondary);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-top: 10px;
+        margin-right: 10px;
+    }
+    
+    .copy-button:hover {
+        background-color: var(--text-primary);
+    }
+    
+    .download-button {
+        background-color: var(--success-text);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-top: 10px;
+        margin-right: 10px;
+    }
+    
+    .download-button:hover {
+        background-color: #0d4a0d;
+    }
+    
+    .copy-success {
+        color: var(--success-text);
+        font-size: 12px;
+        margin-top: 5px;
+    }
+    
+    .button-group {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="setup-container">
+    <h1>🔐 Backup Codes Generated</h1>
+    
+    <div class="success">
+        <strong>✅ 2FA Setup Complete!</strong> Your passkey has been successfully configured.
+    </div>
+    
+    <div class="warning">
+        <strong>⚠️ Important:</strong> Save these backup codes in a secure location. You can use them to access your account if you lose your device or passkey.
+    </div>
+    
+    <div class="step">
+        <h3>Your Backup Codes</h3>
+        <p>Each code can only be used once. After using a code, it will be invalidated.</p>
+        
+        <div class="backup-codes">
+            <div class="backup-codes-grid">
+                {% for code in backup_codes %}
+                <div class="backup-code">{{ code }}</div>
+                {% endfor %}
+            </div>
+            
+            <div class="button-group">
+                <button onclick="copyBackupCodes()" class="copy-button">📋 Copy All Codes</button>
+                <button onclick="downloadBackupCodes()" class="download-button">⬇️ Download as .txt</button>
+            </div>
+            <div id="copy-success" class="copy-success" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <div class="danger">
+        <strong>⚠️ Security Warning:</strong>
+        <ul>
+            <li>Store these codes securely (password manager, safe, etc.)</li>
+            <li>Don't share them with anyone</li>
+            <li>Consider printing them and storing in a safe location</li>
+        </ul>
+    </div>
+    
+    <form method="post" action="{% if is_current_user %}{% url 'admin_current_user_backup_codes' %}{% else %}{% url 'admin_2fa_backup_codes' %}{% endif %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary">
+            {% if is_current_user %}
+                ✅ I've Saved My Backup Codes - Continue to Passkey Management
+            {% else %}
+                ✅ I've Saved My Backup Codes - Continue to Admin
+            {% endif %}
+        </button>
+    </form>
+    
+    <p style="margin-top: 20px; text-align: center; color: var(--text-secondary);">
+        <small>You can always regenerate backup codes later from your admin settings.</small>
+    </p>
+</div>
+
+<script>
+function copyBackupCodes() {
+    const codes = [
+        {% for code in backup_codes %}
+        "{{ code }}"{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    const header = `Backup Codes for {{ user.get_full_name|default:user.username }}
+Generated on: ${new Date().toLocaleDateString()}
+Website: ${window.location.origin}
+
+IMPORTANT: Store these codes securely. Each code can only be used once.
+If you lose access to your device, use one of these codes to access your account.
+
+Backup Codes:
+`;
+    
+    const codesText = header + codes.join('\n');
+    
+    navigator.clipboard.writeText(codesText).then(function() {
+        const successDiv = document.getElementById('copy-success');
+        successDiv.style.display = 'block';
+        successDiv.textContent = 'Codes copied to clipboard!';
+        
+        // Hide the success message after 3 seconds
+        setTimeout(function() {
+            successDiv.style.display = 'none';
+        }, 3000);
+    }).catch(function(err) {
+        console.error('Failed to copy codes: ', err);
+        alert('Failed to copy codes. Please copy them manually.');
+    });
+}
+
+function downloadBackupCodes() {
+    const codes = [
+        {% for code in backup_codes %}
+        "{{ code }}"{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    const header = `Backup Codes for {{ user.get_full_name|default:user.username }}
+Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
+Website: ${window.location.origin}
+
+IMPORTANT: Store these codes securely. Each code can only be used once.
+If you lose access to your device, use one of these codes to access your account.
+
+Backup Codes:
+`;
+    
+    const codesText = header + codes.join('\n');
+
+    const blob = new Blob([codesText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'backup_codes_{{ user.username }}.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Warn user if they try to leave without acknowledging
+window.addEventListener('beforeunload', function(e) {
+    // Only show warning if user hasn't submitted the form
+    if (!document.querySelector('form').classList.contains('submitted')) {
+        e.preventDefault();
+        e.returnValue = 'You haven\'t acknowledged your backup codes yet. Are you sure you want to leave?';
+        return e.returnValue;
+    }
+});
+
+// Mark form as submitted when user clicks the button
+document.querySelector('form').addEventListener('submit', function() {
+    this.classList.add('submitted');
+});
+</script>
+{% endblock %} 

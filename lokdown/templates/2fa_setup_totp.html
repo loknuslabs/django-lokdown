@@ -1,0 +1,200 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Setup TOTP Authentication{% endblock %}
+
+{% block extrahead %}
+<style>
+    /* Light/Dark mode support */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #e9ecef;
+        --text-primary: #333333;
+        --text-secondary: #666666;
+        --border-color: #e0e0e0;
+        --border-hover: #007cba;
+        --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        --warning-bg: #fff3cd;
+        --warning-border: #ffeaa7;
+        --warning-text: #856404;
+        --error-bg: #f8d7da;
+        --error-border: #f5c6cb;
+        --error-text: #721c24;
+        --input-bg: #ffffff;
+        --input-border: #ddd;
+    }
+
+    /* Dark mode overrides */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-primary: #2b2b2b;
+            --bg-secondary: #3a3a3a;
+            --bg-tertiary: #4a4a4a;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #555555;
+            --border-hover: #4a9eff;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --warning-bg: #3d2c1e;
+            --warning-border: #5d4c3e;
+            --warning-text: #ffd54f;
+            --error-bg: #4a2c2c;
+            --error-border: #6b3a3a;
+            --error-text: #ff6b6b;
+            --input-bg: #3a3a3a;
+            --input-border: #555;
+        }
+    }
+
+    .setup-container {
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 30px;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        color: var(--text-primary);
+    }
+    
+    .qr-container {
+        text-align: center;
+        margin: 20px 0;
+        padding: 20px;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+    }
+    
+    .qr-code {
+        max-width: 200px;
+        margin: 0 auto;
+    }
+    
+    .secret-key {
+        background: var(--bg-tertiary);
+        padding: 10px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 14px;
+        margin: 10px 0;
+        word-break: break-all;
+        color: var(--text-primary);
+    }
+    
+    .btn-primary {
+        background-color: var(--border-hover);
+        border-color: var(--border-hover);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 20px;
+    }
+    
+    .btn-primary:hover {
+        background-color: #005a87;
+        border-color: #005a87;
+    }
+    
+    .step {
+        margin: 20px 0;
+        padding: 15px;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+    }
+    
+    .step h3 {
+        margin: 0 0 10px 0;
+        color: var(--text-primary);
+    }
+    
+    input[type="text"] {
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        color: var(--text-primary);
+    }
+    
+    .warning {
+        background-color: var(--warning-bg);
+        border: 1px solid var(--warning-border);
+        color: var(--warning-text);
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .error {
+        background-color: var(--error-bg);
+        border: 1px solid var(--error-border);
+        color: var(--error-text);
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .verification-error {
+        border: 2px solid var(--error-border);
+        background-color: var(--error-bg);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="setup-container">
+    <h1>Setup TOTP Authentication</h1>
+    
+    {% if existing_totp %}
+    <div class="warning">
+        <strong>Note:</strong> You already have TOTP enabled. This will replace your existing TOTP configuration.
+    </div>
+    {% else %}
+    <div class="warning">
+        <strong>Security Notice:</strong> TOTP provides secure two-factor authentication using time-based codes.
+    </div>
+    {% endif %}
+    
+    {% if verification_error %}
+    <div class="error">
+        <strong>Verification Failed:</strong> The code you entered is incorrect. Please try again with a fresh code from your authenticator app.
+    </div>
+    {% endif %}
+    
+    <div class="step">
+        <h3>Step 1: Scan QR Code</h3>
+        <p>Open your authenticator app (Google Authenticator, Authy, etc.) and scan this QR code:</p>
+        
+        <div class="qr-container">
+            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code" class="qr-code">
+        </div>
+        
+        <p><strong>Or manually enter this secret key:</strong></p>
+        <div class="secret-key">{{ secret }}</div>
+    </div>
+    
+    <div class="step {% if verification_error %}verification-error{% endif %}">
+        <h3>Step 2: Verify Setup</h3>
+        <p>Enter the 6-digit code from your authenticator app to verify the setup. After verification, you'll receive backup codes to save securely.</p>
+        
+        <form method="post" action="{% if is_current_user %}{% url 'admin_current_user_totp_setup' %}{% else %}{% url 'admin_2fa_verify_totp' %}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="secret" value="{{ secret }}">
+            <input type="hidden" name="qr_code" value="{{ qr_code }}">
+            {% if overwrite %}
+            <input type="hidden" name="overwrite" value="true">
+            {% endif %}
+            <input type="text" name="{% if is_current_user %}totp_code{% else %}totp_token{% endif %}" placeholder="Enter 6-digit code" 
+                   style="padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 200px; font-size: 16px; text-align: center; letter-spacing: 2px;"
+                   autocomplete="off" maxlength="6" pattern="[0-9]{6}">
+            <br><br>
+            <button type="submit" class="btn-primary">Verify and Complete Setup</button>
+        </form>
+    </div>
+    
+    {% if is_current_user %}
+        <p><a href="{% url 'admin:security_usertimebasedonetimepasswords_changelist' %}" style="color: #007cba;">← Back to 2FA Management</a></p>
+    {% else %}
+        <p><a href="{% url 'admin_2fa_setup' %}" style="color: #007cba;">← Back to setup options</a></p>
+    {% endif %}
+</div>
+{% endblock %} 

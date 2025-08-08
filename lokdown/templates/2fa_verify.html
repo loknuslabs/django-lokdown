@@ -1,0 +1,330 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Two-Factor Authentication{% endblock %}
+
+{% block extrahead %}
+<style>
+    /* Light/Dark mode support */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #e7f3ff;
+        --text-primary: #333333;
+        --text-secondary: #666666;
+        --border-color: #e0e0e0;
+        --border-hover: #007cba;
+        --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        --input-bg: #ffffff;
+        --input-border: #ddd;
+        --error-bg: #f8d7da;
+        --error-border: #f5c6cb;
+        --error-text: #dc3545;
+    }
+
+    /* Dark mode overrides */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-primary: #2b2b2b;
+            --bg-secondary: #3a3a3a;
+            --bg-tertiary: #1e3a5f;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #555555;
+            --border-hover: #4a9eff;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --input-bg: #3a3a3a;
+            --input-border: #555;
+            --error-bg: #3d2c2c;
+            --error-border: #5d4c4c;
+            --error-text: #ff6b6b;
+        }
+    }
+
+    .verify-container {
+        max-width: 500px;
+        margin: 50px auto;
+        padding: 30px;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        color: var(--text-primary);
+    }
+    
+    .verify-method {
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        padding: 20px;
+        margin: 15px 0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: var(--bg-primary);
+    }
+    
+    .verify-method:hover {
+        border-color: var(--border-hover);
+        background-color: var(--bg-secondary);
+        transform: translateY(-2px);
+    }
+    
+    .verify-method.selected {
+        border-color: var(--border-hover);
+        background-color: var(--bg-tertiary);
+    }
+    
+    .verify-method h3 {
+        margin: 0 0 10px 0;
+        color: var(--text-primary);
+    }
+    
+    .verify-method p {
+        margin: 0;
+        color: var(--text-secondary);
+    }
+    
+    .input-field {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--input-border);
+        border-radius: 4px;
+        font-size: 16px;
+        margin: 10px 0;
+        background: var(--input-bg);
+        color: var(--text-primary);
+    }
+    
+    .btn-primary {
+        background-color: var(--border-hover);
+        border-color: var(--border-hover);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 4px;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 20px;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    
+    .btn-primary:hover {
+        background-color: #005a87;
+        border-color: #005a87;
+    }
+    
+    .method-content {
+        display: none;
+    }
+    
+    .method-content.active {
+        display: block;
+    }
+    
+    .error {
+        color: var(--error-text);
+        background-color: var(--error-bg);
+        border: 1px solid var(--error-border);
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-secondary);
+    }
+    
+    .spinner {
+        border: 3px solid var(--border-color);
+        border-top: 3px solid var(--border-hover);
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="verify-container">
+    <h1>Two-Factor Authentication</h1>
+    
+    <p>Please verify your identity using one of your configured 2FA methods:</p>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="error">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    
+    {% if 'totp' in available_methods %}
+    <div class="verify-method" onclick="selectMethod('totp')">
+        <h3>📱 Authenticator App</h3>
+        <p>Enter the 6-digit code from your authenticator app</p>
+    </div>
+    {% endif %}
+    
+    {% if 'passkey' in available_methods %}
+    <div class="verify-method" onclick="selectMethod('passkey')">
+        <h3>🔑 Passkey</h3>
+        <p>Use your device's built-in security (fingerprint, face ID, or PIN)</p>
+    </div>
+    {% endif %}
+    
+    {% if 'backup' in available_methods %}
+    <div class="verify-method" onclick="selectMethod('backup')">
+        <h3>🔐 Backup Code</h3>
+        <p>Enter one of your backup codes</p>
+    </div>
+    {% endif %}
+    
+    <!-- Show setup option if no methods are available or if user might be stuck -->
+    {% if available_methods|length == 0 or available_methods|length == 1 and 'backup' in available_methods %}
+    <div class="verify-method" onclick="window.location.href='{% url 'admin_2fa_setup' %}'">
+        <h3>⚙️ Complete 2FA Setup</h3>
+        <p>It looks like your 2FA setup may be incomplete. Click here to complete the setup process.</p>
+    </div>
+    {% endif %}
+    
+    <!-- TOTP Method -->
+    {% if 'totp' in available_methods %}
+    <div id="totp-content" class="method-content">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="method" value="totp">
+            <input type="text" name="totp_token" placeholder="Enter 6-digit code" 
+                   class="input-field" maxlength="6" pattern="[0-9]{6}">
+            <button type="submit" class="btn-primary">Verify TOTP</button>
+        </form>
+    </div>
+    {% endif %}
+    
+    <!-- Passkey Method -->
+    {% if 'passkey' in available_methods %}
+    <div id="passkey-content" class="method-content">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Authenticating with passkey...</p>
+        </div>
+        <form method="post" id="passkey-form" style="display: none;">
+            {% csrf_token %}
+            <input type="hidden" name="method" value="passkey">
+            <input type="hidden" name="passkey_response" id="passkey-response">
+        </form>
+    </div>
+    {% endif %}
+    
+    <!-- Backup Code Method -->
+    {% if 'backup' in available_methods %}
+    <div id="backup-content" class="method-content">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="method" value="backup">
+            <input type="text" name="backup_code" placeholder="Enter backup code" 
+                   class="input-field" style="font-family: monospace;">
+            <button type="submit" class="btn-primary">Verify Backup Code</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function selectMethod(method) {
+    // Remove selected class from all methods
+    document.querySelectorAll('.verify-method').forEach(m => {
+        m.classList.remove('selected');
+    });
+    
+    // Add selected class to clicked method
+    event.currentTarget.classList.add('selected');
+    
+    // Hide all method content
+    document.querySelectorAll('.method-content').forEach(c => {
+        c.classList.remove('active');
+    });
+    
+    // Show selected method content
+    document.getElementById(method + '-content').classList.add('active');
+    
+    // Automatically trigger passkey authentication if passkey is selected
+    if (method === 'passkey') {
+        setTimeout(function() {
+            authenticateWithPasskey();
+        }, 500);
+    }
+}
+
+async function authenticateWithPasskey() {
+    try {
+        // Get authentication options from server
+        const response = await fetch('{% url "security:admin_2fa_auth_options" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        });
+        
+        const options = await response.json();
+        
+        // Convert base64 challenge to ArrayBuffer
+        const challenge = base64ToArrayBuffer(options.challenge);
+        
+        // Get credentials
+        const credential = await navigator.credentials.get({
+            publicKey: {
+                challenge: challenge,
+                rpId: options.rp_id,
+                userVerification: 'required',
+                timeout: 60000
+            }
+        });
+        
+        // Convert credential to base64
+        const responseData = {
+            id: credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            response: {
+                authenticatorData: arrayBufferToBase64(credential.response.authenticatorData),
+                clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+                signature: arrayBufferToBase64(credential.response.signature)
+            },
+            type: credential.type
+        };
+        
+        // Submit the credential
+        document.getElementById('passkey-response').value = JSON.stringify(responseData);
+        document.getElementById('passkey-form').submit();
+        
+    } catch (error) {
+        console.error('Passkey authentication failed:', error);
+        alert('Passkey authentication failed. Please try another method.');
+    }
+}
+
+function base64ToArrayBuffer(base64) {
+    const binaryString = window.atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+</script>
+{% endblock %} 

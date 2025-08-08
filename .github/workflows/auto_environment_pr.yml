@@ -1,0 +1,33 @@
+name: Automatic Environment PR
+
+on:
+  workflow_call:
+    inputs:
+      src_branch:
+        required: true
+        type: string
+      dest_branch:
+        required: true
+        type: string
+
+jobs:
+  create-pr:
+    name: Create Pull Request
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Create Pull Request
+        uses: diillson/auto-pull-request@v1.0.1
+        with:
+          source_branch: "${{ inputs.src_branch }}"
+          destination_branch: "${{ inputs.dest_branch }}"
+          pr_title: "Pulling ${{ inputs.src_branch }} into ${{ inputs.dest_branch }}"
+          pr_reviewer: "tsbudd"
+          pr_label: "deployment,auto-pr"
+          pr_draft: false
+          pr_allow_empty: false

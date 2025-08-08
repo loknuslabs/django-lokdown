@@ -1,0 +1,83 @@
+name: Notify Discord of Deployment
+
+on:
+  workflow_call:
+    inputs:
+      version_number:
+        required: true
+        type: string
+      release_link:
+        required: true
+        type: string
+      release_notes:
+        required: false
+        type: string
+        default: ""
+      track:
+        required: false
+        type: string
+        default: "dev"
+      platform:
+        required: false
+        type: string
+        default: "docker"
+      deployment_type:
+        required: false
+        type: string
+        default: "self_hosted"
+      component:
+        required: false
+        type: string
+        default: "server"
+      link:
+        required: false
+        type: string
+        default: ""
+      checksum:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      PP_ADMIN_API_KEY:
+        required: true
+      X_GITHUB_BYPASS_TOKEN:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Make POST call to notify Discord Server
+        id: notify
+        run: |
+          set -euo pipefail
+
+          json_payload=$(jq -n \
+            --arg version_number "${{ inputs.version_number }}" \
+            --arg release_notes "${{ inputs.release_notes }}" \
+            --arg release_link "${{ inputs.release_link }}" \
+            --arg track "${{ inputs.track }}" \
+            --arg platform "${{ inputs.platform }}" \
+            --arg deployment_type "${{ inputs.deployment_type }}" \
+            --arg component "${{ inputs.component }}" \
+            --arg link "${{ inputs.link }}" \
+            --arg checksum "${{ inputs.checksum }}" \
+            '{
+              version_number: $version_number,
+              release_notes: $release_notes,
+              release_link: $release_link,
+              track: $track,
+              platform: $platform,
+              deployment_type: $deployment_type,
+              component: $component,
+              checksum: $checksum
+            } | if $link != "" then . + {link: $link} else . end'
+          )
+
+          response=$(curl -s -X POST "https://api.pennypusher.net/api/v1/github/build/new/" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Api-Key ${{ secrets.PP_ADMIN_API_KEY }}" \
+            -H "github_bypass: ${{ secrets.X_GITHUB_BYPASS_TOKEN}}" \
+            -d "$json_payload")
+
+          echo "Response: $response"
