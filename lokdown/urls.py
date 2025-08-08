@@ -1,14 +1,27 @@
 from django.urls import path
+from drf_spectacular.utils import extend_schema
+from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 from . import admin_auth
 from .control import token_views
 from .control import passkey_controller
 from .control import backup_code_controller
 from .control import totp_controller
+from .control.token_views import CustomTokenObtainPairView
 
-app_name = 'lokdown'
+
+@extend_schema(
+    tags=["Authentication"],
+    summary="Refresh JWT token",
+    description="Takes a valid refresh token and returns a new access token.",
+)
+class TaggedTokenRefreshView(TokenRefreshView):
+    pass
 
 urlpatterns = [
+    path('api/token', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh', TaggedTokenRefreshView.as_view(), name='token_refresh'),
+
     # 2FA-enabled login endpoints
     path('auth/login', views.login_init, name='login_init'),
     path('auth/verify', views.login_verify, name='login_verify'),

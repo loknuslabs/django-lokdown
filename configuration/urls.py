@@ -1,12 +1,14 @@
 from django.contrib import admin
+from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.views import SpectacularSwaggerView, SpectacularAPIView
 from django.urls import path, include
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
+
+from configuration.settings import VERSION
 from lokdown.admin_url_override import override_admin_urls
-from lokdown.control.token_views import CustomTokenObtainPairView
 
 
 @extend_schema(
@@ -17,13 +19,18 @@ from lokdown.control.token_views import CustomTokenObtainPairView
 class TaggedTokenRefreshView(TokenRefreshView):
     pass
 
+def index(request):
+    # Adjust this URL to match the URL pattern for your Swagger documentation
+    swagger_url = '/api/schema/swagger-ui/'  # This should be the URL where Swagger UI is served
+
+    return HttpResponse(
+        f'Penny Pusher (v{VERSION})<br><br>' f'<a href="{swagger_url}" target="_blank">Go to API Documentation</a>'
+    )
 
 urlpatterns = [
+    path("", index, name="home"),
     # Django admin
     path('admin/', admin.site.urls),
-    # Legacy token endpoints (kept for backward compatibility)
-    path('api/token', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh', TaggedTokenRefreshView.as_view(), name='token_refresh'),
     # Security app URLs (2FA and authentication)
     path('api/', include('lokdown.urls')),
     # api documentation
