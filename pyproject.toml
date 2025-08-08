@@ -12,7 +12,14 @@ authors = [
 ]
 license = { text = "GPL-3.0-or-later" }
 dependencies = [
-    "Django>=5.1"
+    "Django>=5.1",
+    "django-ratelimit>=4.1.0",
+    "djangorestframework>=3.16.1",
+    "djangorestframework-simplejwt>=5.5.1",
+    "drf-spectacular>=0.28.0",
+    "pyotp>=2.9.0",
+    "qrcode>=8.2",
+    "webauthn>=2.6.0",
 ]
 requires-python = ">=3.13"
 
