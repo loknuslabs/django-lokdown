@@ -18,7 +18,6 @@ from lokdown.helpers.twofa_helper import is_2fa_enabled
 from lokdown.helpers.common_helper import get_client_ip
 
 
-
 @extend_schema(
     tags=["Authentication"],
     summary="Refresh JWT token",
