@@ -29,5 +29,8 @@ jobs:
     - name: Check project
       run: python manage.py check
 
+    - name: Check deploy settings
+      run: python manage.py check --deploy
+
 #    - name: Run tests
 #      run: pytest
