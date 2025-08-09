@@ -51,7 +51,7 @@ def get_available_2fa_methods(user: User) -> dict:
 # Serialization Helper Functions
 # ============================================================================
 
-
+# todo can we serialize this object better?
 def serialize_webauthn_options(options, visited=None):
     """Serialize WebAuthn options to JSON-compatible dict with camelCase keys"""
     if visited is None:

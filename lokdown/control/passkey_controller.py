@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth.models import User
 import logging
+
+from lokdown.helpers.backup_codes_helper import user_backup_codes_exist
 from lokdown.helpers.passkey_helper import (
     generate_passkey_options,
     create_login_session_for_passkey,
@@ -57,6 +59,7 @@ def setup_passkey(request):
     if not options:
         return Response({'error': 'Failed to generate passkey options'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # todo not sure if this is needed
     # Create login session for passkey setup
     session_id = create_login_session_for_passkey(user, options.challenge, request)
     if not session_id:
@@ -86,13 +89,8 @@ def verify_passkey_setup(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    user_id = serializer.validated_data['user_id']
-    passkey_response = serializer.validated_data['passkey_response']
-
-    try:
-        user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_400_BAD_REQUEST)
+    user = request.user
+    passkey_response = serializer.validated_data.get('passkey_response')
 
     try:
         # Get the session for challenge verification
@@ -105,11 +103,12 @@ def verify_passkey_setup(request):
         if not verification:
             return Response({'error': 'Invalid passkey response'}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Complete passkey setup
-        if setup_passkey_backup_codes(user, verification):
-            return Response({'message': 'Passkey setup verified successfully'})
-        else:
-            return Response({'error': 'Failed to complete passkey setup'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # check if backup codes exist already, and if not we will create them
+        backup_codes_exist = user_backup_codes_exist(user)
+        if not backup_codes_exist:
+            setup_passkey_backup_codes(user, verification)
+
+        return Response({'message': 'Passkey setup verified successfully'})
     except Exception as e:
         error_msg = handle_2fa_error(e, user, "Passkey setup")
         return Response({'error': error_msg}, status=status.HTTP_401_UNAUTHORIZED)

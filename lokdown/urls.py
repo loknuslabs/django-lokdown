@@ -1,11 +1,11 @@
 from django.urls import path
 from . import views
 from . import admin_auth
-from .control import token_views
+from .control import token_controller
 from .control import passkey_controller
 from .control import backup_code_controller
 from .control import totp_controller
-from .control.token_views import CustomTokenObtainPairView, TaggedTokenRefreshView
+from .control.token_controller import CustomTokenObtainPairView, TaggedTokenRefreshView
 
 
 app_name = 'lokdown'

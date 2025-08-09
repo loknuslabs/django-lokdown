@@ -13,7 +13,7 @@ from django_ratelimit.decorators import ratelimit
 from .helpers.backup_codes_helper import has_backup_codes, get_or_create_backup_codes
 from .helpers.passkey_helper import has_passkey_enabled
 from .helpers.session_helper import get_session
-from .helpers.totp_helper import has_totp_enabled, get_or_create_2fa
+from .helpers.totp_helper import has_totp_enabled, get_or_create_totp
 from .models import LoginSession
 from .serializers import (
     LoginInitSerializer,
@@ -140,7 +140,7 @@ def get_2fa_status(request):
     """Get 2FA status for current user"""
     # Only create TOTP record if user actually has TOTP enabled
     if has_totp_enabled(request.user):
-        two_fa = get_or_create_2fa(request.user)
+        two_fa = get_or_create_totp(request.user)
         serializer = TwoFactorAuthSerializer(two_fa)
         return Response(serializer.data)
     else:
@@ -167,7 +167,7 @@ def disable_2fa(request):
     """Disable 2FA for user"""
     # Only modify TOTP if user has it
     if has_totp_enabled(request.user):
-        two_fa = get_or_create_2fa(request.user)
+        two_fa = get_or_create_totp(request.user)
         two_fa.totp_secret = None
         two_fa.save()
 

@@ -29,7 +29,7 @@ from .helpers.totp_helper import (
     verify_totp_login,
     verify_totp_token_setup,
     setup_totp_complete,
-    get_or_create_2fa,
+    get_or_create_totp,
 )
 from .models import LoginSession
 from .views import (
@@ -38,7 +38,7 @@ from .views import (
     has_passkey_enabled,
 )
 from lokdown.helpers.twofa_helper import (
-    get_available_2fa_methods,
+    get_available_2fa_methods, serialize_webauthn_options,
 )
 from .helpers.common_helper import get_client_ip
 from .serializers import AdminAuthOptionsResponseSerializer, AdminVerifyRequestSerializer, AdminVerifyResponseSerializer
@@ -318,64 +318,13 @@ def admin_2fa_setup_passkey_view(request):
         # Continue anyway, the session might still work
 
     # Custom serialization for WebAuthn options
-    def serialize_webauthn_options(options, visited=None):
-        """Serialize WebAuthn options to JSON-compatible dict with camelCase keys"""
-        if visited is None:
-            visited = set()
-
-        # Prevent circular references
-        obj_id = id(options)
-        if obj_id in visited:
-            return str(options)  # Return string representation for circular refs
-        visited.add(obj_id)
-
-        # Field name mapping from snake_case to camelCase
-        field_mapping = {
-            'pub_key_cred_params': 'pubKeyCredParams',
-            'authenticator_selection': 'authenticatorSelection',
-            'user_verification': 'userVerification',
-            'resident_key': 'residentKey',
-            'attestation_conveyance': 'attestationConveyance',
-            'exclude_credentials': 'excludeCredentials',
-            'supported_pub_key_algs': 'supportedPubKeyAlgs',
-            'display_name': 'displayName',  # User entity field
-        }
-
-        result = {}
-        for key, value in options.__dict__.items():
-            try:
-                # Convert snake_case to camelCase
-                camel_key = field_mapping.get(key, key)
-
-                if hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool)):
-                    # Handle nested objects
-                    result[camel_key] = serialize_webauthn_options(value, visited)
-                elif isinstance(value, bytes):
-                    # Convert bytes to base64
-                    import base64
-
-                    result[camel_key] = base64.b64encode(value).decode('utf-8')
-                elif isinstance(value, list):
-                    # Handle lists
-                    result[camel_key] = []
-                    for item in value:
-                        if hasattr(item, '__dict__') and not isinstance(item, (str, int, float, bool)):
-                            result[camel_key].append(serialize_webauthn_options(item, visited))
-                        else:
-                            result[camel_key].append(item)
-                else:
-                    result[camel_key] = value
-            except Exception:
-                # If we can't serialize a value, convert it to string
-                result[camel_key] = str(value)
-
-        visited.remove(obj_id)
-        return result
+    def serialize_webauthn_options_view(options, visited=None):
+        serialize_webauthn_options(options, visited=visited)
 
     return render(
         request,
         '2fa_setup_passkey.html',
-        {'options': json.dumps(serialize_webauthn_options(options)), 'session_id': new_session_id},
+        {'options': json.dumps(serialize_webauthn_options_view(options)), 'session_id': new_session_id},
     )
 
 
@@ -538,7 +487,7 @@ def admin_current_user_totp_setup(request):
             return redirect('admin:login')
 
     user = request.user
-    get_or_create_2fa(user)
+    get_or_create_totp(user)
 
     if request.method == 'POST':
         # Handle TOTP verification
@@ -732,7 +681,7 @@ def admin_current_user_backup_codes(request):
             return redirect('admin:login')
 
     user = request.user
-    get_or_create_2fa(user)
+    get_or_create_totp(user)
 
     if request.method == 'POST':
         # User has acknowledged the backup codes - redirect to PasskeyCredential admin

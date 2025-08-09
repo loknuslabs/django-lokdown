@@ -14,8 +14,8 @@ from lokdown.models import UserTimeBasedOneTimePasswords
 
 logger = logging.getLogger(__name__)
 
-
-def get_or_create_2fa(user: User) -> UserTimeBasedOneTimePasswords:
+# todo double check usages
+def get_or_create_totp(user: User) -> UserTimeBasedOneTimePasswords:
     """Get or create 2FA settings for user (only for TOTP users)"""
     two_fa, created = UserTimeBasedOneTimePasswords.objects.get_or_create(user=user)
     return two_fa
@@ -74,24 +74,14 @@ def verify_totp_login(user: User, token: str) -> bool:
         return False
 
 
-def save_totp_to_database(user, secret):
-    """Save TOTP secret to database after successful verification"""
-    try:
-        two_fa = get_or_create_2fa(user)
-        two_fa.totp_secret = secret
-        two_fa.save()
-        return True
-    except Exception as e:
-        logger.error(f"Failed to save TOTP to database for user {user.username}: {str(e)}")
-        return False
-
-
+# todo double-check usages
 def setup_totp_complete(user, secret):
     """Complete TOTP setup by saving secret and generating backup codes"""
     try:
-        # Save TOTP secret
-        if not save_totp_to_database(user, secret):
-            return False
+        # create or update new totp
+        two_fa = get_or_create_totp(user)
+        two_fa.totp_secret = secret
+        two_fa.save()
 
         # Generate backup codes
         backup_codes_obj = get_or_create_backup_codes(user)
