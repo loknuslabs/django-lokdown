@@ -6,10 +6,9 @@ from django.utils import timezone
 from rest_framework import status, serializers
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from drf_spectacular.utils import extend_schema, OpenApiResponse
-
 from lokdown.helpers.backup_codes_helper import has_backup_codes
 from lokdown.helpers.passkey_helper import has_passkey_enabled
 from lokdown.helpers.session_helper import get_session
@@ -17,6 +16,16 @@ from lokdown.helpers.totp_helper import has_totp_enabled
 from lokdown.models import LoginSession
 from lokdown.helpers.twofa_helper import is_2fa_enabled
 from lokdown.helpers.common_helper import get_client_ip
+
+
+
+@extend_schema(
+    tags=["Authentication"],
+    summary="Refresh JWT token",
+    description="Takes a valid refresh token and returns a new access token.",
+)
+class TaggedTokenRefreshView(TokenRefreshView):
+    pass
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

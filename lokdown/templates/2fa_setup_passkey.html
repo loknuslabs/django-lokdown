@@ -172,7 +172,7 @@
             <button onclick="createPasskey()" class="btn-primary">Create Passkey</button>
         </div>
         
-        <form method="post" id="passkey-form" style="display: none;" action="{% if is_current_user %}{% url 'admin_current_user_passkey_setup' %}{% else %}{% url 'admin:admin_2fa_setup_passkey' %}{% endif %}">
+        <form method="post" id="passkey-form" style="display: none;" action="{% if is_current_user %}{% url 'admin_current_user_passkey_setup' %}{% else %}{% url 'admin_2fa_setup_passkey' %}{% endif %}">
             {% csrf_token %}
             <input type="hidden" name="passkey_response" id="passkey-response">
         </form>
@@ -186,7 +186,7 @@
     {% if is_current_user %}
         <p><a href="{% url 'admin:lokdown_usertimebasedonetimepasswords_changelist' %}" style="color: var(--border-hover);">← Back to 2FA Management</a></p>
     {% else %}
-        <p><a href="{% url 'admin:admin_2fa_setup' %}" style="color: var(--border-hover);">← Back to setup options</a></p>
+        <p><a href="{% url 'admin_2fa_setup' %}" style="color: var(--border-hover);">← Back to setup options</a></p>
     {% endif %}
 </div>
 

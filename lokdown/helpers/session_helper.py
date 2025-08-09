@@ -27,7 +27,7 @@ def create_authentication_session(user, request=None):
             user=user,
             session_id=session_id,
             requires_2fa=True,
-            expires=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
+            expires_at=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
         )
 
         if request:

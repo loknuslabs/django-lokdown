@@ -173,7 +173,7 @@ BACKUP_CODES_COUNT = int(os.environ.get('BACKUP_CODES_COUNT', '8'))
 # Backup code length (characters)
 BACKUP_CODE_LENGTH = int(os.environ.get('BACKUP_CODE_LENGTH', '10'))
 # Require 2FA for admin users
-ADMIN_2FA_REQUIRED = os.environ.get('ADMIN_2FA_REQUIRED', 'False').lower() in ('true', '1', 'yes')
+ADMIN_2FA_REQUIRED = os.environ.get('ADMIN_2FA_REQUIRED', 'True').lower() in ('true', '1', 'yes')
 
 
 # Static files (CSS, JavaScript, Images)
