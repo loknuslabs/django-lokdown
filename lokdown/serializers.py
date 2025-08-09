@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import UserTimeBasedOneTimePasswords, PasskeyCredential, LoginSession, BackupCodes
 
 
@@ -42,16 +43,19 @@ class TwoFactorAuthSerializer(serializers.ModelSerializer):
         model = UserTimeBasedOneTimePasswords
         fields = ['is_enabled', 'totp_enabled', 'passkey_enabled']
 
+    @extend_schema_field(serializers.BooleanField)
     def get_is_enabled(self, obj):
         """Check if 2FA is enabled (either TOTP or Passkey)"""
         has_totp = bool(obj.totp_secret)
         has_passkey = obj.user.passkey_credentials.exists()
         return has_totp or has_passkey
 
+    @extend_schema_field(serializers.BooleanField)
     def get_totp_enabled(self, obj):
         """Check if TOTP is enabled"""
         return bool(obj.totp_secret)
 
+    @extend_schema_field(serializers.BooleanField)
     def get_passkey_enabled(self, obj):
         """Check if Passkey is enabled"""
         return obj.user.passkey_credentials.exists()
@@ -99,3 +103,36 @@ class BackupCodesSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+
+class AdminAuthOptionsResponseSerializer(serializers.Serializer):
+    challenge = serializers.CharField()
+    rp_id = serializers.CharField()
+    timeout = serializers.IntegerField()
+
+
+class AdminVerifyRequestSerializer(serializers.Serializer):
+    session_id = serializers.CharField()
+    totp_token = serializers.CharField(required=False, allow_blank=True)
+    passkey_response = serializers.JSONField(required=False)
+    backup_code = serializers.CharField(required=False, allow_blank=True)
+
+
+class AdminVerifyResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    error = serializers.CharField(required=False)
+
+
+class DisableTwoFAResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+
+class PasskeyAuthOptionsRequestSerializer(serializers.Serializer):
+    session_id = serializers.CharField()
+
+
+class PasskeyAuthOptionsResponseSerializer(serializers.Serializer):
+    challenge = serializers.CharField()
+    rp_id = serializers.CharField()
+    timeout = serializers.IntegerField()
+    options = serializers.JSONField()

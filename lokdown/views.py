@@ -19,6 +19,7 @@ from .serializers import (
     LoginInitSerializer,
     LoginVerifySerializer,
     TwoFactorAuthSerializer,
+    DisableTwoFAResponseSerializer,
 )
 from lokdown.helpers.twofa_helper import (
     is_2fa_enabled,
@@ -155,8 +156,9 @@ def get_2fa_status(request):
     summary="Disable 2FA",
     description="Disable 2FA for user",
     tags=["2FA"],
+    request=None,
     responses={
-        200: OpenApiResponse(description="2FA disabled successfully"),
+        200: DisableTwoFAResponseSerializer,
     },
 )
 @api_view(["POST"])

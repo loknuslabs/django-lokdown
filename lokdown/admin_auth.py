@@ -10,6 +10,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .helpers.backup_codes_helper import (
     verify_backup_code,
@@ -40,6 +41,7 @@ from lokdown.helpers.twofa_helper import (
     get_available_2fa_methods,
 )
 from .helpers.common_helper import get_client_ip
+from .serializers import AdminAuthOptionsResponseSerializer, AdminVerifyRequestSerializer, AdminVerifyResponseSerializer
 
 
 def admin_login_view(request):
@@ -441,6 +443,17 @@ def admin_2fa_verify_totp_setup(request):
     return redirect('admin_2fa_setup')
 
 
+@extend_schema(
+    summary="Get admin 2FA authentication options",
+    description="Generate passkey authentication options for admin login",
+    tags=["Admin 2FA"],
+    request=None,
+    responses={
+        200: AdminAuthOptionsResponseSerializer,
+        400: OpenApiResponse(description="No active session"),
+        500: OpenApiResponse(description="Failed to generate authentication options"),
+    },
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def admin_2fa_auth_options(request):
@@ -465,6 +478,17 @@ def admin_2fa_auth_options(request):
     return Response({'challenge': challenge_base64, 'rp_id': options.rp_id, 'timeout': options.timeout})
 
 
+@extend_schema(
+    summary="Verify admin 2FA",
+    description="Verify admin 2FA using TOTP, passkey, or backup code",
+    tags=["Admin 2FA"],
+    request=AdminVerifyRequestSerializer,
+    responses={
+        200: AdminVerifyResponseSerializer,
+        400: OpenApiResponse(description="Invalid or expired session"),
+        401: OpenApiResponse(description="Invalid 2FA token"),
+    },
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def admin_2fa_verify_api(request):

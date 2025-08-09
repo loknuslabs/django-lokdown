@@ -19,7 +19,13 @@ from lokdown.helpers.passkey_helper import (
 )
 from lokdown.helpers.twofa_helper import serialize_webauthn_options, handle_2fa_error
 from lokdown.models import LoginSession, PasskeyCredential
-from lokdown.serializers import PasskeySetupSerializer, PasskeyVerifySerializer, PasskeyCredentialSerializer
+from lokdown.serializers import (
+    PasskeySetupSerializer,
+    PasskeyVerifySerializer,
+    PasskeyCredentialSerializer,
+    PasskeyAuthOptionsRequestSerializer,
+    PasskeyAuthOptionsResponseSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +121,9 @@ def verify_passkey_setup(request):
     summary="Get passkey authentication options",
     description="Generate passkey authentication options for login",
     tags=["2FA Passkey"],
+    request=PasskeyAuthOptionsRequestSerializer,
     responses={
-        200: OpenApiResponse(description="Passkey authentication options generated"),
+        200: PasskeyAuthOptionsResponseSerializer,
         400: OpenApiResponse(description="Invalid session"),
         500: OpenApiResponse(description="Failed to generate options"),
     },
