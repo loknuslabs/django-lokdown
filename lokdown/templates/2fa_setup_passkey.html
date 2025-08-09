@@ -1,0 +1,290 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Setup Passkey Authentication{% endblock %}
+
+{% block extrahead %}
+<style>
+    /* Light/Dark mode support */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #e7f3ff;
+        --text-primary: #333333;
+        --text-secondary: #666666;
+        --border-color: #e0e0e0;
+        --border-hover: #007cba;
+        --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        --warning-bg: #fff3cd;
+        --warning-border: #ffeaa7;
+        --warning-text: #856404;
+        --success-bg: #d4edda;
+        --success-border: #c3e6cb;
+        --success-text: #155724;
+    }
+
+    /* Dark mode overrides */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-primary: #2b2b2b;
+            --bg-secondary: #3a3a3a;
+            --bg-tertiary: #1e3a5f;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #555555;
+            --border-hover: #4a9eff;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --warning-bg: #3d2c1e;
+            --warning-border: #5d4c3e;
+            --warning-text: #ffd54f;
+            --success-bg: #2d4a2d;
+            --success-border: #4d6a4d;
+            --success-text: #4caf50;
+        }
+    }
+
+    .setup-container {
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 30px;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        color: var(--text-primary);
+    }
+    
+    .step {
+        margin: 20px 0;
+        padding: 15px;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+    }
+    
+    .step h3 {
+        margin: 0 0 10px 0;
+        color: var(--text-primary);
+    }
+    
+    .btn-primary {
+        background-color: var(--border-hover);
+        border-color: var(--border-hover);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 20px;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    
+    .btn-primary:hover {
+        background-color: #005a87;
+        border-color: #005a87;
+    }
+    
+    .warning {
+        background-color: var(--warning-bg);
+        border: 1px solid var(--warning-border);
+        color: var(--warning-text);
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .success {
+        background-color: var(--success-bg);
+        border: 1px solid var(--success-border);
+        color: var(--success-text);
+        padding: 15px;
+        border-radius: 4px;
+        margin: 20px 0;
+    }
+    
+    .passkey-info {
+        background: var(--bg-tertiary);
+        padding: 15px;
+        border-radius: 4px;
+        margin: 15px 0;
+    }
+    
+    .passkey-info ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+    
+    .passkey-info li {
+        margin: 5px 0;
+        color: var(--text-secondary);
+    }
+
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-secondary);
+    }
+
+    .spinner {
+        border: 3px solid var(--border-color);
+        border-top: 3px solid var(--border-hover);
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="setup-container">
+    <h1>Setup Passkey Authentication</h1>
+    
+    <div class="warning">
+        <strong>Security Notice:</strong> Passkeys provide the highest level of security for your admin account.
+    </div>
+    
+    <div class="passkey-info">
+        <h3>🔑 What is a Passkey?</h3>
+        <p>A passkey is a modern, secure way to sign in using your device's built-in security features:</p>
+        <ul>
+            <li><strong>Fingerprint</strong> - Use your fingerprint sensor</li>
+            <li><strong>Face ID</strong> - Use facial recognition (iPhone, Mac)</li>
+            <li><strong>PIN/Password</strong> - Use your device's PIN or password</li>
+            <li><strong>Hardware Keys</strong> - Use YubiKey or other security keys</li>
+        </ul>
+    </div>
+    
+    <div class="step" id="step1">
+        <h3>Step 1: Creating Your Passkey</h3>
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Setting up your passkey...</p>
+        </div>
+        <div id="manual-trigger" style="display: none;">
+            <p>If the passkey setup didn't start automatically, click the button below:</p>
+            <button onclick="createPasskey()" class="btn-primary">Create Passkey</button>
+        </div>
+        
+        <form method="post" id="passkey-form" style="display: none;" action="{% if is_current_user %}{% url 'admin_current_user_passkey_setup' %}{% else %}{% url 'admin_2fa_setup_passkey' %}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="passkey_response" id="passkey-response">
+        </form>
+    </div>
+    
+    <div class="step">
+        <h3>Step 2: Backup Codes</h3>
+        <p>After creating your passkey, you'll also receive backup codes that you can use if you lose access to your device.</p>
+    </div>
+    
+    {% if is_current_user %}
+        <p><a href="{% url 'admin:lokdown_usertimebasedonetimepasswords_changelist' %}" style="color: var(--border-hover);">← Back to 2FA Management</a></p>
+    {% else %}
+        <p><a href="{% url 'admin_2fa_setup' %}" style="color: var(--border-hover);">← Back to setup options</a></p>
+    {% endif %}
+</div>
+
+<script>
+// Debug: Log the raw options from server
+console.log('Raw options from server:', {{ options|safe }});
+
+// Override for testing - check if we're on localhost
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+if (isLocalhost) {
+    console.log('Running on localhost - WebAuthn may be restricted');
+}
+
+// Auto-trigger passkey creation when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to ensure page is fully loaded
+    setTimeout(() => {
+        createPasskey();
+    }, 500);
+});
+
+async function createPasskey() {
+    try {
+        // Show loading state
+        document.getElementById('loading').style.display = 'block';
+        
+        // Use the options passed from the server
+        const options = {{ options|safe }};
+        
+        // Convert base64 challenge to ArrayBuffer
+        const challenge = base64ToArrayBuffer(options.challenge);
+        
+        // Create credentials
+        const publicKeyOptions = {
+            challenge: challenge,
+            rp: options.rp,
+            user: {
+                id: base64ToArrayBuffer(options.user.id),
+                name: options.user.name,
+                displayName: options.user.displayName
+            },
+            pubKeyCredParams: options.pubKeyCredParams,
+            authenticatorSelection: options.authenticatorSelection,
+            attestation: options.attestation,
+            timeout: 60000
+        };
+        
+        const credential = await navigator.credentials.create({
+            publicKey: publicKeyOptions
+        });
+        
+        // Convert credential to base64
+        const responseData = {
+            id: credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            response: {
+                authenticatorData: arrayBufferToBase64(credential.response.authenticatorData),
+                clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+                attestationObject: arrayBufferToBase64(credential.response.attestationObject)
+            },
+            type: credential.type
+        };
+        
+        // Submit the credential
+        document.getElementById('passkey-response').value = JSON.stringify(responseData);
+        document.getElementById('passkey-form').submit();
+        
+    } catch (error) {
+        console.error('Passkey creation failed:', error);
+        
+        // Hide loading and show manual trigger
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('manual-trigger').style.display = 'block';
+        
+        // Show error message
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'background-color: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); padding: 15px; border-radius: 4px; margin: 15px 0;';
+        errorDiv.innerHTML = `<strong>Error:</strong> ${error.message || 'Passkey creation failed. Please try again or choose a different method.'}`;
+        document.getElementById('step1').appendChild(errorDiv);
+    }
+}
+
+function base64ToArrayBuffer(base64) {
+    const binaryString = window.atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+</script>
+{% endblock %} 

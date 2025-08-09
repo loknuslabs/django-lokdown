@@ -1,0 +1,380 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Regenerated Backup Codes{% endblock %}
+
+{% block extrahead %}
+<style>
+    /* Light/Dark mode support */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #e9ecef;
+        --text-primary: #333333;
+        --text-secondary: #666666;
+        --border-color: #e0e0e0;
+        --border-hover: #007cba;
+        --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        --warning-bg: #fff3cd;
+        --warning-border: #ffeaa7;
+        --warning-text: #856404;
+        --error-bg: #f8d7da;
+        --error-border: #f5c6cb;
+        --error-text: #721c24;
+        --success-bg: #d4edda;
+        --success-border: #c3e6cb;
+        --success-text: #155724;
+        --info-bg: #d1ecf1;
+        --info-border: #bee5eb;
+        --info-text: #0c5460;
+        --input-bg: #ffffff;
+        --input-border: #ddd;
+        --code-bg: #f8f9fa;
+        --code-border: #dee2e6;
+        --code-text: #333;
+        --header-bg: #007cba;
+        --header-text: #ffffff;
+    }
+
+    /* Dark mode overrides */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-primary: #2b2b2b;
+            --bg-secondary: #3a3a3a;
+            --bg-tertiary: #4a4a4a;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #555555;
+            --border-hover: #4a9eff;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --warning-bg: #3d2c1e;
+            --warning-border: #5d4c3e;
+            --warning-text: #ffd54f;
+            --error-bg: #4a2c2c;
+            --error-border: #6b3a3a;
+            --error-text: #ff6b6b;
+            --success-bg: #2c4a2c;
+            --success-border: #3a6b3a;
+            --success-text: #6bff6b;
+            --info-bg: #2c4a4a;
+            --info-border: #3a6b6b;
+            --info-text: #6bffff;
+            --input-bg: #3a3a3a;
+            --input-border: #555;
+            --code-bg: #3a3a3a;
+            --code-border: #555;
+            --code-text: #ffffff;
+            --header-bg: #4a9eff;
+            --header-text: #ffffff;
+        }
+    }
+
+    .backup-codes-container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 30px;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        color: var(--text-primary);
+    }
+    
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid var(--border-color);
+    }
+    
+    .header h1 {
+        color: var(--text-primary);
+        margin-bottom: 10px;
+    }
+    
+    .summary {
+        background: var(--bg-secondary);
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        text-align: center;
+        color: var(--text-primary);
+    }
+    
+    .download-section {
+        background: var(--info-bg);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+        text-align: center;
+        border: 1px solid var(--info-border);
+    }
+    
+    .download-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        margin-top: 15px;
+        flex-wrap: wrap;
+    }
+    
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+        background-color: var(--border-hover);
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background-color: #005a87;
+        transform: translateY(-1px);
+    }
+    
+    .btn-success {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .btn-success:hover {
+        background-color: #1e7e34;
+        transform: translateY(-1px);
+    }
+    
+    .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background-color: #545b62;
+        transform: translateY(-1px);
+    }
+    
+    .codes-section {
+        margin-top: 30px;
+    }
+    
+    .user-codes {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+    
+    .user-header {
+        background: var(--header-bg);
+        color: var(--header-text);
+        padding: 15px 20px;
+        font-weight: bold;
+        font-size: 16px;
+    }
+    
+    .codes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+        padding: 20px;
+    }
+    
+    .code-item {
+        background: var(--code-bg);
+        border: 1px solid var(--code-border);
+        border-radius: 5px;
+        padding: 10px;
+        text-align: center;
+        font-family: monospace;
+        font-size: 14px;
+        font-weight: bold;
+        color: var(--code-text);
+        transition: all 0.2s ease;
+    }
+    
+    .code-item:hover {
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    .warning {
+        background-color: var(--warning-bg);
+        border: 1px solid var(--warning-border);
+        color: var(--warning-text);
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .security-notice {
+        background-color: var(--info-bg);
+        border: 1px solid var(--info-border);
+        color: var(--info-text);
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .success-notice {
+        background-color: var(--success-bg);
+        border: 1px solid var(--success-border);
+        color: var(--success-text);
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .backup-codes-container {
+            margin: 10px;
+            padding: 20px;
+        }
+        
+        .download-buttons {
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .codes-grid {
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 8px;
+            padding: 15px;
+        }
+        
+        .code-item {
+            font-size: 12px;
+            padding: 8px;
+        }
+    }
+    
+    /* Print styles */
+    @media print {
+        .download-section,
+        .btn {
+            display: none;
+        }
+        
+        .backup-codes-container {
+            box-shadow: none;
+            border: 1px solid #000;
+        }
+        
+        .code-item {
+            border: 1px solid #000;
+            background: white !important;
+            color: black !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="backup-codes-container">
+    <div class="header">
+        <h1>🔐 Regenerated Backup Codes</h1>
+        <p>New backup codes have been generated for {{ codes_count }} user{{ codes_count|pluralize }}</p>
+    </div>
+    
+    <div class="security-notice">
+        <strong>⚠️ Security Notice:</strong> 
+        These backup codes are shown only once. Please download them immediately and store them securely. 
+        They will not be displayed again after you leave this page.
+    </div>
+    
+    <div class="download-section">
+        <h3>📥 Download Backup Codes</h3>
+        <p>Choose your preferred format to download the backup codes:</p>
+        
+        <form method="post" style="display: inline;">
+            {% csrf_token %}
+            <div class="download-buttons">
+                <button type="submit" name="download_format" value="txt" class="btn btn-primary">
+                    📄 Download as Text File
+                </button>
+                <button type="submit" name="download_format" value="csv" class="btn btn-success">
+                    📊 Download as CSV File
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <div class="warning">
+        <strong>Important:</strong> 
+        Make sure to save these codes in a secure location. They are your backup access method if you lose your 2FA device.
+    </div>
+    
+    <div class="codes-section">
+        <h3>📋 Backup Codes by User</h3>
+        
+        {% for username, codes in regenerated_codes.items %}
+        <div class="user-codes">
+            <div class="user-header">
+                👤 {{ username }}
+            </div>
+            <div class="codes-grid">
+                {% for code in codes %}
+                <div class="code-item">
+                    {{ code }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div style="text-align: center; margin-top: 30px;">
+        <a href="{% url 'admin:lokdown_usertimebasedonetimepasswords_changelist' %}" class="btn btn-secondary">
+            ← Back to Backup Codes Management
+        </a>
+    </div>
+</div>
+
+<script>
+    // Auto-download after 5 seconds if user hasn't downloaded manually
+    setTimeout(function() {
+        if (!document.querySelector('.btn-primary:focus')) {
+            // Create a temporary form to trigger download
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = window.location.href;
+            
+            var csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            form.appendChild(csrfInput);
+            
+            var downloadInput = document.createElement('input');
+            downloadInput.type = 'hidden';
+            downloadInput.name = 'download_format';
+            downloadInput.value = 'txt';
+            form.appendChild(downloadInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+    }, 5000);
+    
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + S to download as text
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            document.querySelector('button[value="txt"]').click();
+        }
+        // Ctrl/Cmd + D to download as CSV
+        if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+            e.preventDefault();
+            document.querySelector('button[value="csv"]').click();
+        }
+    });
+</script>
+{% endblock %} 

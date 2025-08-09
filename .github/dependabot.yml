@@ -1,0 +1,30 @@
+version: 2
+
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      all-deps:
+        patterns:
+          - "*"
+    rebase-strategy: "auto"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # Update both requirements.txt and pyproject.toml together
+    # Dependabot will automatically detect both files and update them in the same PR
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    rebase-strategy: "auto"
+    commit-message:
+      prefix: "ci"
+      include: "scope"

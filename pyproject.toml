@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-lokdown"
+version = "1.0.0"
+description = "Reusable Django utility library"
+readme = "README.md"
+authors = [
+    { name = "Loknus Labs LLC", email = "loknuslabs@gmail.com" }
+]
+license = { text = "GPL-3.0-or-later" }
+dependencies = [
+    "Django>=5.1",
+    "django-ratelimit>=4.1.0",
+    "djangorestframework>=3.16.1",
+    "djangorestframework-simplejwt>=5.5.1",
+    "drf-spectacular>=0.28.0",
+    "pyotp>=2.9.0",
+    "qrcode>=8.2",
+    "webauthn>=2.6.0",
+    "Pillow>=11.3.0"
+]
+requires-python = ">=3.13"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.black]
+line-length = 120
+skip-string-normalization = true
+target-version = ['py313']
