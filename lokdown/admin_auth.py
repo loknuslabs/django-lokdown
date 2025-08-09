@@ -446,7 +446,7 @@ def admin_2fa_verify_totp_setup(request):
 @extend_schema(
     summary="Get admin 2FA authentication options",
     description="Generate passkey authentication options for admin login",
-    tags=["Admin 2FA"],
+    tags=["2FA"],
     request=None,
     responses={
         200: AdminAuthOptionsResponseSerializer,
@@ -481,7 +481,7 @@ def admin_2fa_auth_options(request):
 @extend_schema(
     summary="Verify admin 2FA",
     description="Verify admin 2FA using TOTP, passkey, or backup code",
-    tags=["Admin 2FA"],
+    tags=["2FA"],
     request=AdminVerifyRequestSerializer,
     responses={
         200: AdminVerifyResponseSerializer,

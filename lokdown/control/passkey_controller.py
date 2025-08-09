@@ -1,5 +1,4 @@
 import base64
-
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from rest_framework.decorators import api_view, permission_classes
@@ -8,7 +7,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth.models import User
 import logging
-
 from lokdown.helpers.passkey_helper import (
     generate_passkey_options,
     create_login_session_for_passkey,

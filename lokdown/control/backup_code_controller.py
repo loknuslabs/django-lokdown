@@ -17,7 +17,7 @@ from lokdown.serializers import BackupCodeSerializer
 @extend_schema(
     summary="Verify backup code",
     description="Verify backup code with strict rate limiting (10 attempts per minute)",
-    tags=["2FA"],
+    tags=["2FA Backup Code"],
     request=BackupCodeSerializer,
     responses={
         200: OpenApiResponse(description="Backup code verified successfully"),
@@ -34,8 +34,8 @@ def verify_backup_code_endpoint(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    session_id = serializer.validated_data['session_id']
-    backup_code = serializer.validated_data['backup_code']
+    session_id = serializer.validated_data.get('session_id')
+    backup_code = serializer.validated_data.get('backup_code')
 
     # Get session
     try:
