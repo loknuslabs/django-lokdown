@@ -1,3 +1,4 @@
+import base64
 import uuid
 from datetime import timedelta
 from django.conf import settings
@@ -10,16 +11,17 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_ratelimit.decorators import ratelimit
-from .helpers.backup_codes_helper import has_backup_codes, get_or_create_backup_codes
-from .helpers.passkey_helper import has_passkey_enabled
-from .helpers.session_helper import get_session
-from .helpers.totp_helper import has_totp_enabled, get_or_create_totp
+from .helpers.backup_codes_helper import has_backup_codes, get_or_create_backup_codes, verify_backup_code
+from .helpers.passkey_helper import has_passkey_enabled, custom_generate_authentication_options, verify_passkey
+from .helpers.session_helper import get_session, validate_session_data
+from .helpers.totp_helper import has_totp_enabled, get_or_create_totp, verify_totp_login
 from .models import LoginSession
 from .serializers import (
     LoginInitSerializer,
     LoginVerifySerializer,
     TwoFactorAuthSerializer,
-    DisableTwoFAResponseSerializer,
+    DisableTwoFAResponseSerializer, AdminAuthOptionsResponseSerializer, AdminVerifyRequestSerializer,
+    AdminVerifyResponseSerializer,
 )
 from lokdown.helpers.twofa_helper import (
     is_2fa_enabled,
@@ -180,3 +182,87 @@ def disable_2fa(request):
     backup_codes_obj.save()
 
     return Response({'message': '2FA disabled successfully'})
+
+
+@extend_schema(
+    summary="Get admin 2FA authentication options",
+    description="Generate passkey authentication options for admin login",
+    tags=["2FA"],
+    request=None,
+    responses={
+        200: AdminAuthOptionsResponseSerializer,
+        400: OpenApiResponse(description="No active session"),
+        500: OpenApiResponse(description="Failed to generate authentication options"),
+    },
+)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def admin_2fa_auth_options(request):
+    """API endpoint for admin passkey authentication options"""
+    session_id = request.session.get('admin_2fa_session_id')
+    session, error = validate_session_data(session_id)
+    if not session:
+        return Response({'error': 'No active session'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Generate authentication options
+    options = custom_generate_authentication_options()
+    if not options:
+        return Response(
+            {'error': 'Failed to generate authentication options'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    # Store challenge in session
+    challenge_base64 = base64.b64encode(options.challenge).decode('utf-8')
+    session.challenge = challenge_base64
+    session.save()
+
+    return Response({'challenge': challenge_base64, 'rp_id': options.rp_id, 'timeout': options.timeout})
+
+
+@extend_schema(
+    summary="Verify admin 2FA",
+    description="Verify admin 2FA using TOTP, passkey, or backup code",
+    tags=["2FA"],
+    request=AdminVerifyRequestSerializer,
+    responses={
+        200: AdminVerifyResponseSerializer,
+        400: OpenApiResponse(description="Invalid or expired session"),
+        401: OpenApiResponse(description="Invalid 2FA token"),
+    },
+)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def admin_2fa_verify_api(request):
+    """API endpoint for admin 2FA verification"""
+    session_id = request.data.get('session_id')
+    totp_token = request.data.get('totp_token')
+    passkey_response = request.data.get('passkey_response')
+    backup_code = request.data.get('backup_code')
+
+    try:
+        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
+    except LoginSession.DoesNotExist:
+        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Verify 2FA method
+    if totp_token and has_totp_enabled(session.user):
+        if verify_totp_login(session.user, totp_token):
+            session.totp_verified = True
+            session.save()
+            return Response({'success': True})
+
+    elif passkey_response and session.user.passkey_credentials.exists():
+        if verify_passkey(session.user, passkey_response, session_id):
+            session.passkey_verified = True
+            session.save()
+            return Response({'success': True})
+
+    elif backup_code:
+        if verify_backup_code(
+            session.user, backup_code, get_client_ip(request), request.META.get('HTTP_USER_AGENT', '')
+        ):
+            session.totp_verified = True
+            session.save()
+            return Response({'success': True})
+
+    return Response({'error': 'Invalid 2FA token'}, status=status.HTTP_401_UNAUTHORIZED)

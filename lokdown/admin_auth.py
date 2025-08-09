@@ -6,19 +6,13 @@ from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.conf import settings
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework import status
-from drf_spectacular.utils import extend_schema, OpenApiResponse
-
 from .helpers.backup_codes_helper import (
     verify_backup_code,
     get_or_create_backup_codes,
     generate_backup_codes,
     has_backup_codes,
 )
-from .helpers.passkey_helper import verify_passkey, custom_generate_authentication_options
+from .helpers.passkey_helper import verify_passkey
 from .helpers.session_helper import (
     create_authentication_session,
     validate_session_data,
@@ -41,7 +35,8 @@ from lokdown.helpers.twofa_helper import (
     get_available_2fa_methods, serialize_webauthn_options,
 )
 from .helpers.common_helper import get_client_ip
-from .serializers import AdminAuthOptionsResponseSerializer, AdminVerifyRequestSerializer, AdminVerifyResponseSerializer
+from django.contrib.admin import site as admin_site
+from datetime import timedelta
 
 
 def admin_login_view(request):
@@ -53,40 +48,36 @@ def admin_login_view(request):
 
         user = authenticate(request, username=username, password=password)
 
-        if user is not None and user.is_staff:
-            # Check if admin 2FA is required
-            if settings.ADMIN_2FA_REQUIRED:
-                # Check what 2FA methods are available without creating them
-                available_methods = get_available_2fa_methods(user)
-                has_2fa_enabled = any(available_methods.values())
-
-                if not has_2fa_enabled:
-                    # First time login - create session and redirect to 2FA setup
-                    session_id = create_authentication_session(user, request)
-                    if session_id:
-                        request.session['admin_2fa_session_id'] = session_id
-                        return redirect('admin_2fa_setup')
-                    else:
-                        messages.error(request, 'Failed to create authentication session.')
-                        return redirect('admin_login')
-                else:
-                    # 2FA is enabled - create session and redirect to verification
-                    session_id = create_authentication_session(user, request)
-                    if session_id:
-                        request.session['admin_2fa_session_id'] = session_id
-                        return redirect('admin_2fa_verify')
-                    else:
-                        messages.error(request, 'Failed to create authentication session.')
-                        return redirect('admin_login')
-            else:
-                # 2FA not required for admins - proceed with normal login
-                login(request, user)
-                return redirect('admin:index')
-        else:
+        # user authentication failed or user is not staff
+        if user is None or not user.is_staff:
             messages.error(request, 'Invalid credentials or insufficient permissions.')
 
-    # Use Django's built-in admin login view for the template
-    from django.contrib.admin import site as admin_site
+        elif not settings.ADMIN_LOGIN_ENABLED:
+            # 2FA not required for admins - proceed with normal login
+            login(request, user)
+            return redirect('admin:index')
+
+        else:
+            available_methods = get_available_2fa_methods(user)
+            has_2fa_enabled = any(available_methods.values())
+            session_id = create_authentication_session(user, request)
+
+            if not has_2fa_enabled:
+                # First time login - create session and redirect to 2FA setup
+                if session_id:
+                    request.session['admin_2fa_session_id'] = session_id
+                    return redirect('admin_2fa_setup')
+                else:
+                    messages.error(request, 'Failed to create authentication session.')
+                    return redirect('admin_login')
+            else:
+                # 2FA is enabled - create session and redirect to verification
+                if session_id:
+                    request.session['admin_2fa_session_id'] = session_id
+                    return redirect('admin_2fa_verify')
+                else:
+                    messages.error(request, 'Failed to create authentication session.')
+                    return redirect('admin_login')
 
     return admin_site.login(request)
 
@@ -193,6 +184,92 @@ def admin_2fa_verify_view(request):
     return render(request, '2fa_verify.html', {'available_methods': available_methods, 'user': user})
 
 
+# --------------------------------------------- TOTP ---------------------------------------------
+
+def admin_current_user_totp_setup(request):
+    """TOTP setup view for current admin user"""
+    if not request.user.is_authenticated or not request.user.is_staff:
+        # Use appropriate login URL based on 2FA setting
+        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
+            return redirect('admin_login')
+        else:
+            return redirect('admin:login')
+
+    user = request.user
+    get_or_create_totp(user)
+
+    if request.method == 'POST':
+        # Handle TOTP verification
+        totp_code = request.POST.get('totp_code')
+        secret = request.session.get('pending_current_user_totp_secret')
+
+        if totp_code and secret:
+            # Verify the TOTP token
+            if verify_totp_token_setup(secret, totp_code):
+                # Complete TOTP setup
+                if setup_totp_complete(user, secret):
+                    # Clear the pending secret from session
+                    if 'pending_current_user_totp_secret' in request.session:
+                        del request.session['pending_current_user_totp_secret']
+
+                    messages.success(request, 'TOTP setup completed successfully!')
+                    return redirect('admin_current_user_backup_codes')
+                else:
+                    messages.error(request, 'Failed to complete TOTP setup.')
+            else:
+                messages.error(request, 'Invalid TOTP code. Please try again.')
+        else:
+            messages.error(request, 'Missing required fields or no pending TOTP setup.')
+
+    # Generate TOTP secret and QR code
+    totp_secret = generate_totp_secret()
+    qr_code_b64 = generate_totp_qr_code(totp_secret, user)
+
+    # Store the secret in session for verification (not in database yet)
+    request.session['pending_current_user_totp_secret'] = totp_secret
+
+    return render(
+        request,
+        '2fa_setup_totp.html',
+        {'qr_code': qr_code_b64, 'secret': totp_secret, 'user': user, 'is_current_user': True},
+    )
+
+def admin_2fa_verify_totp_setup(request):
+    """Admin TOTP setup verification"""
+    # Get user from session
+    session_id = request.session.get('admin_2fa_session_id')
+    session, error = validate_session_data(session_id)
+    if not session:
+        return redirect('admin_login')
+
+    user = session.user
+
+    if request.method == 'POST':
+        totp_token = request.POST.get('totp_token')
+        secret = request.session.get('pending_totp_secret')
+
+        if secret and totp_token:
+            # Verify the TOTP token
+            if verify_totp_token_setup(secret, totp_token):
+                # Complete TOTP setup
+                if setup_totp_complete(user, secret):
+                    # Clear the pending secret from session
+                    if 'pending_totp_secret' in request.session:
+                        del request.session['pending_totp_secret']
+
+                    messages.success(request, 'TOTP setup completed successfully!')
+                    return redirect('admin_2fa_backup_codes')
+                else:
+                    messages.error(request, 'Failed to complete TOTP setup.')
+            else:
+                messages.error(request, 'Invalid TOTP token. Please try again.')
+        else:
+            messages.error(request, 'Missing required fields or no pending TOTP setup.')
+
+    return redirect('admin_2fa_setup')
+
+
+# --------------------------------------------- Passkey ---------------------------------------------
 def admin_2fa_setup_passkey_view(request):
     """Admin passkey setup view"""
     # Get user from session since they're not fully authenticated yet
@@ -302,7 +379,7 @@ def admin_2fa_setup_passkey_view(request):
     LoginSession.objects.create(
         user=user,
         session_id=new_session_id,
-        expires_at=timezone.now() + timezone.timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
+        expires_at=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
         challenge=challenge_base64,  # Store as base64 string
         ip_address=get_client_ip(request),
         user_agent=request.META.get('HTTP_USER_AGENT', ''),
@@ -325,204 +402,6 @@ def admin_2fa_setup_passkey_view(request):
         request,
         '2fa_setup_passkey.html',
         {'options': json.dumps(serialize_webauthn_options_view(options)), 'session_id': new_session_id},
-    )
-
-
-def admin_2fa_backup_codes_view(request):
-    """Admin backup codes display view"""
-    # Get user from session since they're not fully authenticated yet
-    session_id = request.session.get('admin_2fa_session_id')
-    if not session_id:
-        return redirect('admin_login')
-
-    try:
-        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
-        user = session.user
-    except LoginSession.DoesNotExist:
-        return redirect('admin_login')
-
-    # Get the user's backup codes
-    try:
-        from .views import get_or_create_backup_codes
-
-        backup_codes_obj = get_or_create_backup_codes(user)
-        backup_codes = backup_codes_obj.codes
-    except Exception:
-        return redirect('admin_2fa_setup')
-
-    if request.method == 'POST':
-        # User has acknowledged the backup codes
-        return redirect('admin:index')
-
-    return render(request, '2fa_backup_codes.html', {'backup_codes': backup_codes, 'user': user})
-
-
-def admin_2fa_verify_totp_setup(request):
-    """Admin TOTP setup verification"""
-    # Get user from session
-    session_id = request.session.get('admin_2fa_session_id')
-    session, error = validate_session_data(session_id)
-    if not session:
-        return redirect('admin_login')
-
-    user = session.user
-
-    if request.method == 'POST':
-        totp_token = request.POST.get('totp_token')
-        secret = request.session.get('pending_totp_secret')
-
-        if secret and totp_token:
-            # Verify the TOTP token
-            if verify_totp_token_setup(secret, totp_token):
-                # Complete TOTP setup
-                if setup_totp_complete(user, secret):
-                    # Clear the pending secret from session
-                    if 'pending_totp_secret' in request.session:
-                        del request.session['pending_totp_secret']
-
-                    messages.success(request, 'TOTP setup completed successfully!')
-                    return redirect('admin_2fa_backup_codes')
-                else:
-                    messages.error(request, 'Failed to complete TOTP setup.')
-            else:
-                messages.error(request, 'Invalid TOTP token. Please try again.')
-        else:
-            messages.error(request, 'Missing required fields or no pending TOTP setup.')
-
-    return redirect('admin_2fa_setup')
-
-
-@extend_schema(
-    summary="Get admin 2FA authentication options",
-    description="Generate passkey authentication options for admin login",
-    tags=["2FA"],
-    request=None,
-    responses={
-        200: AdminAuthOptionsResponseSerializer,
-        400: OpenApiResponse(description="No active session"),
-        500: OpenApiResponse(description="Failed to generate authentication options"),
-    },
-)
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def admin_2fa_auth_options(request):
-    """API endpoint for admin passkey authentication options"""
-    session_id = request.session.get('admin_2fa_session_id')
-    session, error = validate_session_data(session_id)
-    if not session:
-        return Response({'error': 'No active session'}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Generate authentication options
-    options = custom_generate_authentication_options()
-    if not options:
-        return Response(
-            {'error': 'Failed to generate authentication options'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-    # Store challenge in session
-    challenge_base64 = base64.b64encode(options.challenge).decode('utf-8')
-    session.challenge = challenge_base64
-    session.save()
-
-    return Response({'challenge': challenge_base64, 'rp_id': options.rp_id, 'timeout': options.timeout})
-
-
-@extend_schema(
-    summary="Verify admin 2FA",
-    description="Verify admin 2FA using TOTP, passkey, or backup code",
-    tags=["2FA"],
-    request=AdminVerifyRequestSerializer,
-    responses={
-        200: AdminVerifyResponseSerializer,
-        400: OpenApiResponse(description="Invalid or expired session"),
-        401: OpenApiResponse(description="Invalid 2FA token"),
-    },
-)
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def admin_2fa_verify_api(request):
-    """API endpoint for admin 2FA verification"""
-    session_id = request.data.get('session_id')
-    totp_token = request.data.get('totp_token')
-    passkey_response = request.data.get('passkey_response')
-    backup_code = request.data.get('backup_code')
-
-    try:
-        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
-    except LoginSession.DoesNotExist:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Verify 2FA method
-    if totp_token and has_totp_enabled(session.user):
-        if verify_totp_login(session.user, totp_token):
-            session.totp_verified = True
-            session.save()
-            return Response({'success': True})
-
-    elif passkey_response and session.user.passkey_credentials.exists():
-        if verify_passkey(session.user, passkey_response, session_id):
-            session.passkey_verified = True
-            session.save()
-            return Response({'success': True})
-
-    elif backup_code:
-        if verify_backup_code(
-            session.user, backup_code, get_client_ip(request), request.META.get('HTTP_USER_AGENT', '')
-        ):
-            session.totp_verified = True
-            session.save()
-            return Response({'success': True})
-
-    return Response({'error': 'Invalid 2FA token'}, status=status.HTTP_401_UNAUTHORIZED)
-
-
-# Current User Setup Views (for admin actions)
-def admin_current_user_totp_setup(request):
-    """TOTP setup view for current admin user"""
-    if not request.user.is_authenticated or not request.user.is_staff:
-        # Use appropriate login URL based on 2FA setting
-        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
-            return redirect('admin_login')
-        else:
-            return redirect('admin:login')
-
-    user = request.user
-    get_or_create_totp(user)
-
-    if request.method == 'POST':
-        # Handle TOTP verification
-        totp_code = request.POST.get('totp_code')
-        secret = request.session.get('pending_current_user_totp_secret')
-
-        if totp_code and secret:
-            # Verify the TOTP token
-            if verify_totp_token_setup(secret, totp_code):
-                # Complete TOTP setup
-                if setup_totp_complete(user, secret):
-                    # Clear the pending secret from session
-                    if 'pending_current_user_totp_secret' in request.session:
-                        del request.session['pending_current_user_totp_secret']
-
-                    messages.success(request, 'TOTP setup completed successfully!')
-                    return redirect('admin_current_user_backup_codes')
-                else:
-                    messages.error(request, 'Failed to complete TOTP setup.')
-            else:
-                messages.error(request, 'Invalid TOTP code. Please try again.')
-        else:
-            messages.error(request, 'Missing required fields or no pending TOTP setup.')
-
-    # Generate TOTP secret and QR code
-    totp_secret = generate_totp_secret()
-    qr_code_b64 = generate_totp_qr_code(totp_secret, user)
-
-    # Store the secret in session for verification (not in database yet)
-    request.session['pending_current_user_totp_secret'] = totp_secret
-
-    return render(
-        request,
-        '2fa_setup_totp.html',
-        {'qr_code': qr_code_b64, 'secret': totp_secret, 'user': user, 'is_current_user': True},
     )
 
 
@@ -671,6 +550,7 @@ def admin_current_user_passkey_setup(request):
     )
 
 
+# --------------------------------------------- Backup Codes ---------------------------------------------
 def admin_current_user_backup_codes(request):
     """Backup codes view for current admin user"""
     if not request.user.is_authenticated or not request.user.is_staff:
@@ -700,68 +580,30 @@ def admin_current_user_backup_codes(request):
     )
 
 
-def admin_backup_codes_display(request):
-    """Admin backup codes display view for regenerated codes"""
-    if not request.user.is_authenticated or not request.user.is_staff:
-        # Use appropriate login URL based on 2FA setting
-        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
-            return redirect('admin_login')
-        else:
-            return redirect('admin:login')
+def admin_2fa_backup_codes_view(request):
+    """Admin backup codes display view"""
+    # Get user from session since they're not fully authenticated yet
+    session_id = request.session.get('admin_2fa_session_id')
+    if not session_id:
+        return redirect('admin_login')
 
-    # Get regenerated codes from session or request
-    regenerated_codes = request.session.get('regenerated_backup_codes', {})
+    try:
+        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
+        user = session.user
+    except LoginSession.DoesNotExist:
+        return redirect('admin_login')
 
-    if not regenerated_codes:
-        messages.error(request, 'No regenerated backup codes found.')
-        return redirect('admin:lokdown_backupcodes_changelist')
+    # Get the user's backup codes
+    try:
+        from .views import get_or_create_backup_codes
 
-    codes_count = len(regenerated_codes)
+        backup_codes_obj = get_or_create_backup_codes(user)
+        backup_codes = backup_codes_obj.codes
+    except Exception:
+        return redirect('admin_2fa_setup')
 
     if request.method == 'POST':
-        download_format = request.POST.get('download_format')
+        # User has acknowledged the backup codes
+        return redirect('admin:index')
 
-        if download_format in ['txt', 'csv']:
-            from django.http import HttpResponse
-
-            if download_format == 'txt':
-                content = "Backup Codes\n\n"
-                for username, codes in regenerated_codes.items():
-                    content += f"User: {username}\n"
-                    content += "Codes:\n"
-                    for code in codes:
-                        content += f"  {code}\n"
-                    content += "\n"
-
-                response = HttpResponse(content, content_type='text/plain')
-                response['Content-Disposition'] = 'attachment; filename="backup_codes.txt"'
-
-            else:  # csv
-                import csv
-                from io import StringIO
-
-                output = StringIO()
-                writer = csv.writer(output)
-                writer.writerow(['Username', 'Backup Code'])
-
-                for username, codes in regenerated_codes.items():
-                    for code in codes:
-                        writer.writerow([username, code])
-
-                response = HttpResponse(output.getvalue(), content_type='text/csv')
-                response['Content-Disposition'] = 'attachment; filename="backup_codes.csv"'
-
-            # Clear the session data after download
-            if 'regenerated_backup_codes' in request.session:
-                del request.session['regenerated_backup_codes']
-
-            return response
-
-    return render(
-        request,
-        'templates/backup_codes_display.html',
-        {
-            'codes_count': codes_count,
-            'regenerated_codes': regenerated_codes,
-        },
-    )
+    return render(request, '2fa_backup_codes.html', {'backup_codes': backup_codes, 'user': user})

@@ -183,17 +183,12 @@ BACKUP_CODE_LENGTH = int(os.environ.get('BACKUP_CODE_LENGTH', '10'))
 ### 2FA Management
 - `POST /api/auth/2fa/setup/totp` - Setup TOTP authentication
 - `POST /api/auth/2fa/verify/totp` - Verify TOTP setup
-- `POST /api/auth/2fa/setup/passkey` - Setup WebAuthn passkey
-- `POST /api/auth/2fa/verify/passkey` - Verify passkey setup
+- `POST /api/auth/2fa/passkey/setup` - Setup WebAuthn passkey
+- `POST /api/auth/2fa/passkey/verify` - Verify passkey setup
 - `GET /api/auth/2fa/status` - Get current 2FA status
 - `POST /api/auth/2fa/disable` - Disable 2FA for user
 - `GET /api/auth/2fa/passkey/credentials` - Get passkey credentials
 - `DELETE /api/auth/2fa/passkey/remove` - Remove passkey credential
-
-### Admin 2FA API Endpoints
-- `POST /api/admin/2fa/auth-options` - Get passkey authentication options
-- `POST /api/admin/2fa/verify-api` - Verify 2FA for admin interface
-- `GET /api/admin/backup-codes/display` - Display regenerated backup codes
 
 ## Django Admin
 

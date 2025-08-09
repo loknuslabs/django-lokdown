@@ -1,7 +1,6 @@
 # ============================================================================
 # Session Management Helper Functions
 # ============================================================================
-
 import uuid
 import logging
 from datetime import timedelta
