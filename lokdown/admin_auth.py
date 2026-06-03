@@ -137,7 +137,7 @@ def admin_2fa_verify_totp_setup(request):
     if request.method == "POST":
         secret = request.session.get("pending_totp_secret")
         totp_token = request.POST.get("totp_token")
-        ok, error = complete_totp_setup(session.user, secret, totp_token)
+        ok, error, _backup_codes = complete_totp_setup(session.user, secret, totp_token)
         if ok:
             del request.session["pending_totp_secret"]
             messages.success(request, "TOTP setup completed successfully!")
@@ -157,7 +157,7 @@ def admin_2fa_setup_passkey_view(request):
     if request.method == "POST":
         passkey_response = request.POST.get("passkey_response")
         if passkey_response:
-            ok, error = complete_passkey_registration(
+            ok, error, _backup_codes = complete_passkey_registration(
                 user,
                 session.session_id,
                 passkey_response,
@@ -193,7 +193,7 @@ def admin_current_user_totp_setup(request):
 
     if request.method == "POST":
         secret = request.session.get("pending_current_user_totp_secret")
-        ok, error = complete_totp_setup(user, secret, request.POST.get("totp_code"))
+        ok, error, _backup_codes = complete_totp_setup(user, secret, request.POST.get("totp_code"))
         if ok:
             del request.session["pending_current_user_totp_secret"]
             messages.success(request, "TOTP setup completed successfully!")
@@ -227,7 +227,7 @@ def admin_current_user_passkey_setup(request):
             messages.error(request, "Session expired. Please try again.")
             return redirect("admin_current_user_passkey_setup")
 
-        ok, error = complete_passkey_registration(
+        ok, error, _backup_codes = complete_passkey_registration(
             user,
             session_id,
             passkey_response,

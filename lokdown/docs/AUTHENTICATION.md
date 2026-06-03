@@ -323,7 +323,16 @@ Content-Type: application/json
 }
 ```
 
-On success, lokdown saves the secret and generates backup codes.
+**200 response**
+
+```json
+{
+  "message": "TOTP setup verified successfully",
+  "backup_codes": ["ABCD1234EF", "GHI5678JKL0"]
+}
+```
+
+On success, lokdown saves the secret and generates a **new** set of backup codes. Save them immediately; they are not returned again via the API.
 
 ### Enroll passkey
 
@@ -358,7 +367,16 @@ Content-Type: application/json
 }
 ```
 
-The credential is saved after verification. Backup codes are created automatically if the user has none.
+**200 response**
+
+```json
+{
+  "message": "Passkey setup verified successfully",
+  "backup_codes": ["ABCD1234EF", "GHI5678JKL0"]
+}
+```
+
+The credential is saved after verification. Backup codes are created automatically if the user has none; otherwise `backup_codes` is an empty array (user already received codes from TOTP setup).
 
 ### Manage passkeys
 

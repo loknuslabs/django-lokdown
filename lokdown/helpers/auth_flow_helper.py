@@ -222,14 +222,15 @@ def begin_totp_setup(user: User) -> dict[str, Any]:
     }
 
 
-def complete_totp_setup(user: User, secret: str, totp_token: str) -> tuple[bool, str | None]:
+def complete_totp_setup(user: User, secret: str, totp_token: str) -> tuple[bool, str | None, list[str]]:
     if not secret or not totp_token:
-        return False, "Missing secret or token"
+        return False, "Missing secret or token", []
     if not verify_totp_token_setup(secret, totp_token):
-        return False, "Invalid TOTP token"
+        return False, "Invalid TOTP token", []
     if not setup_totp_complete(user, secret):
-        return False, "Failed to complete TOTP setup"
-    return True, None
+        return False, "Failed to complete TOTP setup", []
+    backup_codes_obj = get_or_create_backup_codes(user)
+    return True, None, list(backup_codes_obj.codes)
 
 
 def begin_passkey_registration(user: User, request) -> dict[str, Any] | Response:
@@ -259,7 +260,7 @@ def complete_passkey_registration(
     passkey_response: dict | str,
     *,
     create_backup_codes_if_missing: bool = True,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | None, list[str]]:
     try:
         session = LoginSession.objects.get(
             session_id=session_id,
@@ -267,24 +268,26 @@ def complete_passkey_registration(
             expires_at__gt=timezone.now(),
         )
     except LoginSession.DoesNotExist:
-        return False, "Invalid or expired session"
+        return False, "Invalid or expired session", []
 
     if not session.challenge:
-        return False, "No valid session challenge found"
+        return False, "No valid session challenge found", []
 
     verification = verify_passkey_registration(passkey_response, session.challenge)
     if not verification:
-        return False, "Invalid passkey response"
+        return False, "Invalid passkey response", []
 
     if not save_passkey_to_database(user, verification):
-        return False, "Failed to save passkey credential"
+        return False, "Failed to save passkey credential", []
 
+    backup_codes: list[str] = []
     if create_backup_codes_if_missing and not user_backup_codes_exist(user):
         backup_codes_obj = get_or_create_backup_codes(user)
         backup_codes_obj.codes = generate_backup_codes()
         backup_codes_obj.save()
+        backup_codes = list(backup_codes_obj.codes)
 
-    return True, None
+    return True, None, backup_codes
 
 
 def validate_login_session(session_id: str | None) -> LoginSession | Response:

@@ -1,5 +1,6 @@
 import pyotp
 import pytest
+from django.conf import settings
 from django.urls import reverse
 from rest_framework import status
 
@@ -29,6 +30,7 @@ class TestTotpController:
             format="json",
         )
         assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["backup_codes"]) == settings.BACKUP_CODES_COUNT
         two_fa = get_or_create_totp(user)
         two_fa.refresh_from_db()
         assert two_fa.totp_secret == secret
