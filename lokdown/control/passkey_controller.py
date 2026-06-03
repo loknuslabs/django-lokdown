@@ -153,8 +153,10 @@ def remove_passkey_credential(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def admin_2fa_auth_options(request):
-    session_id = request.session.get("admin_2fa_session_id")
-    session, _error = validate_session_data(session_id)
+    from lokdown.helpers.request_auth_helper import get_admin_pending_session_key
+
+    session_id = request.session.get(get_admin_pending_session_key())
+    session, _error = validate_session_data(session_id, request)
     if not session:
         return Response(
             ErrorResponseSerializer({"error": "No active session"}).data,

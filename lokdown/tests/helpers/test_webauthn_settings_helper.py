@@ -24,7 +24,25 @@ class TestWebauthnSettingsHelper:
         settings.WEBAUTHN_ORIGIN = ""
         assert get_webauthn_expected_origin() == ["http://a.test", "http://b.test"]
 
-    def test_resolve_rp_id_from_request(self, settings):
+    def test_resolve_rp_id_from_origin_header(self, settings):
+        settings.WEBAUTHN_RP_ID = "localhost"
+        request = RequestFactory().get(
+            "/",
+            HTTP_HOST="127.0.0.1:8000",
+            HTTP_ORIGIN="http://localhost:5173",
+        )
+        assert resolve_rp_id(request) == "localhost"
+
+    def test_resolve_rp_id_uses_browser_header(self, settings):
+        settings.WEBAUTHN_RP_ID = "localhost"
+        request = RequestFactory().get(
+            "/",
+            HTTP_HOST="127.0.0.1:8000",
+            HTTP_X_LOKDOWN_RP_ID="localhost",
+        )
+        assert resolve_rp_id(request) == "localhost"
+
+    def test_resolve_rp_id_uses_request_host_for_local_dev_without_origin(self, settings):
         settings.WEBAUTHN_RP_ID = "localhost"
         request = RequestFactory().get("/", HTTP_HOST="127.0.0.1:8000")
         assert resolve_rp_id(request) == "127.0.0.1"
@@ -32,3 +50,8 @@ class TestWebauthnSettingsHelper:
     def test_resolve_rp_id_fallback(self, settings):
         settings.WEBAUTHN_RP_ID = "localhost"
         assert resolve_rp_id(None) == "localhost"
+
+    def test_resolve_rp_id_ignores_untrusted_host(self, settings):
+        settings.WEBAUTHN_RP_ID = "app.example.com"
+        request = RequestFactory().get("/", HTTP_HOST="evil.example.com")
+        assert resolve_rp_id(request) == "app.example.com"

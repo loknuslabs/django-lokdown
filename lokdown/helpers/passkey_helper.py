@@ -99,10 +99,15 @@ def decode_stored_credential_id(credential_id: str) -> bytes:
     return base64url_to_bytes(credential_id)
 
 
-def build_allow_credentials(user: User) -> list[PublicKeyCredentialDescriptor]:
+def build_allow_credentials(
+    user: User,
+    expected_rp_id: str | None = None,
+) -> list[PublicKeyCredentialDescriptor]:
     """Build allowCredentials for authentication from stored passkeys."""
     descriptors = []
     for credential in user.passkey_credentials.all():
+        if expected_rp_id and credential.rp_id != expected_rp_id:
+            continue
         try:
             descriptors.append(
                 PublicKeyCredentialDescriptor(
@@ -275,9 +280,10 @@ def verify_passkey(user: User, response_data: dict | str, session_id: str, reque
 def custom_generate_authentication_options(user: User, request=None):
     """Generate passkey authentication options scoped to the user's registered credentials."""
     try:
-        allow_credentials = build_allow_credentials(user)
+        rp_id = resolve_rp_id(request)
+        allow_credentials = build_allow_credentials(user, expected_rp_id=rp_id)
         options = generate_authentication_options(
-            rp_id=resolve_rp_id(request),
+            rp_id=rp_id,
             user_verification=UserVerificationRequirement.REQUIRED,
             allow_credentials=allow_credentials or None,
         )

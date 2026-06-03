@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.utils import timezone
@@ -110,6 +110,35 @@ class TestCompleteLoginWithTokens:
         payload = complete_login_with_tokens(login_session, None, key_style="simplejwt")
         assert "access" in payload
         assert "refresh" in payload
+
+
+@pytest.mark.django_db
+class TestCompletePasskeyRegistration:
+    @patch("lokdown.helpers.auth_flow_helper.save_passkey_to_database", return_value=True)
+    @patch("lokdown.helpers.auth_flow_helper.verify_passkey_registration")
+    def test_returns_backup_codes_on_success(self, mock_verify, _mock_save, user):
+        from django.conf import settings
+        from lokdown.helpers.auth_flow_helper import (
+            complete_passkey_registration,
+            create_login_session_for_passkey,
+            generate_passkey_options,
+        )
+
+        mock_verify.return_value = object()
+        options = generate_passkey_options(user)
+        assert options is not None
+        session_id = create_login_session_for_passkey(user, options.challenge)
+        assert session_id is not None
+
+        ok, error, backup_codes = complete_passkey_registration(
+            user,
+            session_id,
+            {"id": "cred", "rawId": "cred", "type": "public-key", "response": {}},
+        )
+        assert ok is True
+        assert error is None
+        assert len(backup_codes) == settings.BACKUP_CODES_COUNT
+        assert all(len(c) == settings.BACKUP_CODE_LENGTH for c in backup_codes)
 
 
 @pytest.mark.django_db

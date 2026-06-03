@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from django.conf import settings
 from django.http import HttpRequest
+
+_DEV_RP_ID_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]"})
+
+# IPv6 loopback only — [::1] pages use the same rpId as localhost.
+_DEV_RP_ID_CANONICAL = {
+    "[::1]": "localhost",
+}
 
 
 def parse_webauthn_origins() -> list[str]:
@@ -52,16 +61,66 @@ def get_webauthn_expected_origin():
     return origins
 
 
+def normalize_dev_rp_id(host: str | None) -> str | None:
+    """Map IPv6/IPv4 loopback hosts to a single dev rpId (default WEBAUTHN_RP_ID)."""
+    if not host:
+        return None
+    host = host.strip().lower().split(":")[0]
+    configured = getattr(settings, "WEBAUTHN_RP_ID", "localhost")
+    if host in _DEV_RP_ID_CANONICAL:
+        return _DEV_RP_ID_CANONICAL[host]
+    return host
+
+
+def _browser_rp_id_header(request: HttpRequest) -> str | None:
+    """rpId reported by admin/SPA JavaScript (``X-Lokdown-Rp-Id``)."""
+    return normalize_dev_rp_id(request.META.get("HTTP_X_LOKDOWN_RP_ID"))
+
+
+def _hostname_from_origin_header(request: HttpRequest) -> str | None:
+    """
+    Derive rpId from the browser origin when the SPA calls the API cross-port.
+
+    ``127.0.0.1`` and ``localhost`` are different WebAuthn rpIds; the API server's
+    Host header must not override the page the user is on.
+    """
+    origin = request.META.get("HTTP_ORIGIN")
+    if not origin:
+        referer = request.META.get("HTTP_REFERER")
+        if referer:
+            origin = referer
+        else:
+            return None
+    parsed = urlparse(origin)
+    return normalize_dev_rp_id(parsed.hostname)
+
+
 def resolve_rp_id(request: HttpRequest | None = None) -> str:
     """
     Relying party ID for the current ceremony.
 
-    Uses the request hostname when available so admin works on both
-    ``localhost`` and ``127.0.0.1`` without a browser "invalid domain" error.
-    Falls back to ``WEBAUTHN_RP_ID``.
+    Priority:
+    1. ``X-Lokdown-Rp-Id`` header (admin template sends ``window.location.hostname``)
+    2. Hostname from ``Origin`` / ``Referer`` (cross-origin SPA)
+    3. Request ``Host`` for local dev hosts (normalized to ``WEBAUTHN_RP_ID`` when applicable)
+    4. ``WEBAUTHN_RP_ID`` for production
+
+    Note: ``WEBAUTHN_ORIGINS`` is only used for server-side origin checks, not this rpId.
     """
-    if request is not None:
-        host = request.get_host().split(":")[0].strip()
-        if host:
-            return host
-    return getattr(settings, "WEBAUTHN_RP_ID", "localhost")
+    configured = getattr(settings, "WEBAUTHN_RP_ID", "localhost")
+    if request is None:
+        return configured
+
+    browser_rp = _browser_rp_id_header(request)
+    if browser_rp:
+        return browser_rp
+
+    origin_host = _hostname_from_origin_header(request)
+    if origin_host:
+        return origin_host
+
+    host = normalize_dev_rp_id(request.get_host().split(":")[0])
+    if host and host in _DEV_RP_ID_HOSTS:
+        return host
+
+    return configured

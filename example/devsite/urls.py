@@ -1,21 +1,10 @@
 from django.contrib import admin
 from django.http import HttpResponse
-from drf_spectacular.utils import extend_schema
 from drf_spectacular.views import SpectacularSwaggerView, SpectacularAPIView
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenRefreshView
 
 from devsite.settings import VERSION
 from lokdown.urls import override_admin_urls
-
-
-@extend_schema(
-    tags=["Authentication"],
-    summary="Refresh JWT token",
-    description="Takes a valid refresh token and returns a new access token.",
-)
-class TaggedTokenRefreshView(TokenRefreshView):
-    pass
 
 
 def index(request):

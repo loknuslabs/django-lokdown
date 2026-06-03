@@ -71,14 +71,18 @@ def create_authentication_session(user, request=None) -> str | None:
         return None
 
 
-def validate_session_data(session_id: str | None) -> tuple[LoginSession | None, str | None]:
+def validate_session_data(
+    session_id: str | None,
+    request=None,
+) -> tuple[LoginSession | None, str | None]:
     if not session_id:
         return None, "No session ID provided"
     try:
         session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
-        return session, None
     except LoginSession.DoesNotExist:
         return None, "Invalid or expired session"
+
+    return session, None
 
 
 def require_self_user(request_user: User, user_id: int) -> User | Response:
@@ -282,11 +286,12 @@ def complete_passkey_registration(
         return False, "Failed to save passkey credential", []
 
     backup_codes: list[str] = []
-    if create_backup_codes_if_missing and not user_backup_codes_exist(user):
+    if create_backup_codes_if_missing:
+        plaintext_codes = generate_backup_codes()
         backup_codes_obj = get_or_create_backup_codes(user)
-        backup_codes_obj.codes = generate_backup_codes()
-        backup_codes_obj.save()
-        backup_codes = list(backup_codes_obj.codes)
+        backup_codes_obj.codes = plaintext_codes
+        backup_codes_obj.save(update_fields=["codes", "updated_at"])
+        backup_codes = plaintext_codes
 
     return True, None, backup_codes
 

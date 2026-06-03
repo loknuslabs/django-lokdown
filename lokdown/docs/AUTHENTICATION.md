@@ -380,7 +380,7 @@ Content-Type: application/json
 }
 ```
 
-The credential is saved after verification. Backup codes are created automatically if the user has none; otherwise `backup_codes` is an empty array (user already received codes from TOTP setup).
+The credential is saved after verification. A fresh set of backup codes is generated and returned in the response (same as TOTP setup). Store them immediately; they are not returned again via the API.
 
 ### Manage passkeys
 

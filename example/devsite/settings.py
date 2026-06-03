@@ -103,9 +103,23 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SERIALIZER = "django.contrib.sessions.serializers.JSONSerializer"
 
-WEBAUTHN_ORIGIN = "http://localhost:8000"
+# Origins allowed when the SERVER verifies WebAuthn responses (py_webauthn).
+# This does NOT set the browser rpId — that comes from the page URL hostname.
+WEBAUTHN_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:5173",
+]
+# Default rpId for dev; must match the hostname in your browser address bar.
+# Use http://localhost:8000 for admin if passkeys were registered on localhost (not 127.0.0.1).
 WEBAUTHN_RP_ID = os.environ.get("WEBAUTHN_RP_ID", "localhost")
 WEBAUTHN_RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "Lokdown Local")
+WEBAUTHN_USE_REQUEST_HOST = os.environ.get("WEBAUTHN_USE_REQUEST_HOST", "False").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 BACKUP_CODE_RATE_LIMIT = int(os.environ.get("BACKUP_CODE_RATE_LIMIT", "10"))
 TWOFA_SESSION_TIMEOUT = int(os.environ.get("TWOFA_SESSION_TIMEOUT", "10"))
