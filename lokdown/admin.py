@@ -114,9 +114,7 @@ class UserTwoFactorAuthAdmin(admin.ModelAdmin):
 
     def export_security_report(self, request):
         # This would generate a CSV report of security status
-        self.message_user(
-            request, "Security report export feature would be implemented here."
-        )
+        self.message_user(request, "Security report export feature would be implemented here.")
 
     export_security_report.short_description = "Export security report"
 
@@ -161,11 +159,7 @@ class PasskeyCredentialAdmin(admin.ModelAdmin):
     )
 
     def credential_id_short(self, obj):
-        return (
-            obj.credential_id[:20] + "..."
-            if len(obj.credential_id) > 20
-            else obj.credential_id
-        )
+        return obj.credential_id[:20] + "..." if len(obj.credential_id) > 20 else obj.credential_id
 
     credential_id_short.short_description = "Credential ID"
 
@@ -175,9 +169,7 @@ class PasskeyCredentialAdmin(admin.ModelAdmin):
     credential_id_full.short_description = "Full Credential ID"
 
     def public_key_preview(self, obj):
-        return (
-            obj.public_key[:50] + "..." if len(obj.public_key) > 50 else obj.public_key
-        )
+        return obj.public_key[:50] + "..." if len(obj.public_key) > 50 else obj.public_key
 
     public_key_preview.short_description = "Public Key Preview"
 
@@ -203,9 +195,7 @@ class PasskeyCredentialAdmin(admin.ModelAdmin):
     def setup_passkey_for_current_user(self):
         return redirect("admin_current_user_passkey_setup")
 
-    setup_passkey_for_current_user.short_description = (
-        "Setup passkey for current admin user"
-    )
+    setup_passkey_for_current_user.short_description = "Setup passkey for current admin user"
 
     def has_change_permission(self, request, obj=...):
         return False
@@ -247,9 +237,7 @@ class LoginSessionAdmin(admin.ModelAdmin):
     )
 
     def session_id_short(self, obj):
-        return (
-            obj.session_id[:20] + "..." if len(obj.session_id) > 20 else obj.session_id
-        )
+        return obj.session_id[:20] + "..." if len(obj.session_id) > 20 else obj.session_id
 
     session_id_short.short_description = "Session ID"
 
@@ -260,34 +248,22 @@ class LoginSessionAdmin(admin.ModelAdmin):
 
     def security_status(self, obj):
         if obj.is_authenticated:
-            return mark_safe(
-                '<span style="color: #48bb78; font-weight: 500;">✅ Authenticated</span>'
-            )
+            return mark_safe('<span style="color: #48bb78; font-weight: 500;">✅ Authenticated</span>')
         elif obj.requires_2fa:
             if obj.totp_verified or obj.passkey_verified:
-                return mark_safe(
-                    '<span style="color: #ed8936; font-weight: 500;">🟠 TOTP Verified</span>'
-                )
+                return mark_safe('<span style="color: #ed8936; font-weight: 500;">🟠 TOTP Verified</span>')
             else:
-                return mark_safe(
-                    '<span style="color: #e53e3e; font-weight: 500;">🔴 TOTP Pending</span>'
-                )
+                return mark_safe('<span style="color: #e53e3e; font-weight: 500;">🔴 TOTP Pending</span>')
         else:
-            return mark_safe(
-                '<span style="color: #a0aec0; font-weight: 500;">⚪ No TOTP</span>'
-            )
+            return mark_safe('<span style="color: #a0aec0; font-weight: 500;">⚪ No TOTP</span>')
 
     security_status.short_description = "Security Status"
 
     def is_expired(self, obj):
         if obj.expires_at < timezone.now():
-            return mark_safe(
-                '<span style="color: #e53e3e; font-weight: 500;">Expired</span>'
-            )
+            return mark_safe('<span style="color: #e53e3e; font-weight: 500;">Expired</span>')
         else:
-            return mark_safe(
-                '<span style="color: #48bb78; font-weight: 500;">Active</span>'
-            )
+            return mark_safe('<span style="color: #48bb78; font-weight: 500;">Active</span>')
 
     is_expired.short_description = "Status"
 
@@ -341,11 +317,7 @@ class FailedBackupCodeAttemptAdmin(admin.ModelAdmin):
 
     def user_agent_short(self, obj):
         if obj.user_agent:
-            return (
-                obj.user_agent[:30] + "..."
-                if len(obj.user_agent) > 30
-                else obj.user_agent
-            )
+            return obj.user_agent[:30] + "..." if len(obj.user_agent) > 30 else obj.user_agent
         return "N/A"
 
     user_agent_short.short_description = "User Agent"
@@ -384,9 +356,7 @@ class FailedBackupCodeAttemptAdmin(admin.ModelAdmin):
 
     def export_security_log(self, request):
         # This would generate a security log export
-        self.message_user(
-            request, "Security log export feature would be implemented here."
-        )
+        self.message_user(request, "Security log export feature would be implemented here.")
 
     export_security_log.short_description = "Export security log"
 

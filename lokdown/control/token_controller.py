@@ -32,9 +32,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         # First, authenticate the user
-        user = authenticate(
-            username=attrs.get("username"), password=attrs.get("password")
-        )
+        user = authenticate(username=attrs.get("username"), password=attrs.get("password"))
 
         if not user:
             raise serializers.ValidationError("Invalid credentials")
@@ -47,8 +45,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 user=user,
                 session_id=session_id,
                 requires_2fa=True,
-                expires_at=timezone.now()
-                + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
+                expires_at=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
                 ip_address=get_client_ip(self.context["request"]),
                 user_agent=self.context["request"].META.get("HTTP_USER_AGENT", ""),
             )
@@ -129,13 +126,9 @@ class TokenVerify2FAView(TokenObtainPairView):
         backup_code = request.data.get("backup_code")
 
         if not session_id:
-            return Response(
-                {"error": "session_id is required"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "session_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        session = get_session(
-            session_id, totp_token, passkey_response, backup_code, request
-        )
+        session = get_session(session_id, totp_token, passkey_response, backup_code, request)
         if type(session) is Response:
             return session
 

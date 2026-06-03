@@ -102,9 +102,7 @@ def verify_passkey_setup(request):
         # Get the session for challenge verification
         session = user.login_sessions.last()
         if not session or not session.challenge:
-            return Response(
-                {"error": "No valid session found"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "No valid session found"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verify the passkey registration response
         verification = verify_passkey_registration(passkey_response, session.challenge)
@@ -144,13 +142,9 @@ def get_passkey_auth_options(request):
 
     # Validate session
     try:
-        session = LoginSession.objects.get(
-            session_id=session_id, expires_at__gt=timezone.now()
-        )
+        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
     except LoginSession.DoesNotExist:
-        return Response(
-            {"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Check if user has passkey enabled
     if not has_passkey_enabled(session.user):
@@ -230,6 +224,4 @@ def remove_passkey_credential(request):
         credential.delete()
         return Response({"message": "Passkey credential removed"})
     except PasskeyCredential.DoesNotExist:
-        return Response(
-            {"error": "Credential not found"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Credential not found"}, status=status.HTTP_400_BAD_REQUEST)

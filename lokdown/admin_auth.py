@@ -296,9 +296,7 @@ def admin_2fa_setup_passkey_view(request):
         return redirect("admin_login")
 
     try:
-        session = LoginSession.objects.get(
-            session_id=session_id, expires_at__gt=timezone.now()
-        )
+        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
         user = session.user
     except LoginSession.DoesNotExist:
         return redirect("admin_login")
@@ -338,9 +336,7 @@ def admin_2fa_setup_passkey_view(request):
                 from .models import PasskeyCredential
 
                 # Convert public key to base64 for storage
-                public_key_base64 = base64.b64encode(
-                    verification.credential_public_key
-                ).decode("utf-8")
+                public_key_base64 = base64.b64encode(verification.credential_public_key).decode("utf-8")
 
                 # Create the passkey credential
                 PasskeyCredential.objects.create(
@@ -471,9 +467,7 @@ def admin_current_user_passkey_setup(request):
                 # Save the credential
                 from .models import PasskeyCredential
 
-                public_key_base64 = base64.b64encode(
-                    verification.credential_public_key
-                ).decode("utf-8")
+                public_key_base64 = base64.b64encode(verification.credential_public_key).decode("utf-8")
 
                 PasskeyCredential.objects.create(
                     user=user,
@@ -500,9 +494,7 @@ def admin_current_user_passkey_setup(request):
                 import logging
 
                 logger = logging.getLogger(__name__)
-                logger.error(
-                    f"Current user passkey setup failed for user {user.username}: {str(e)}"
-                )
+                logger.error(f"Current user passkey setup failed for user {user.username}: {str(e)}")
 
     # Generate passkey options
     from webauthn.helpers.structs import (
@@ -543,10 +535,7 @@ def admin_current_user_passkey_setup(request):
                 continue
             visited.add(key)
 
-            camel_key = "".join(
-                word.capitalize() if i > 0 else word
-                for i, word in enumerate(key.split("_"))
-            )
+            camel_key = "".join(word.capitalize() if i > 0 else word for i, word in enumerate(key.split("_")))
 
             if key == "challenge":
                 result[camel_key] = base64.b64encode(value).decode("utf-8")
@@ -559,9 +548,7 @@ def admin_current_user_passkey_setup(request):
             elif key == "rp":
                 result[camel_key] = {"name": value.name, "id": value.id}
             elif key == "pub_key_cred_params":
-                result[camel_key] = [
-                    {"alg": param.alg, "type": param.type} for param in value
-                ]
+                result[camel_key] = [{"alg": param.alg, "type": param.type} for param in value]
             elif key == "authenticator_selection":
                 result[camel_key] = {
                     "residentKey": value.resident_key.value,
@@ -608,9 +595,7 @@ def admin_current_user_backup_codes(request):
         return redirect("admin:lokdown_passkeycredential_changelist")
 
     if not has_backup_codes(user):
-        messages.error(
-            request, "No backup codes found. Please complete 2FA setup first."
-        )
+        messages.error(request, "No backup codes found. Please complete 2FA setup first.")
         return redirect("admin:lokdown_usertwofactorauth_changelist")
 
     backup_codes_obj = get_or_create_backup_codes(user)
@@ -631,9 +616,7 @@ def admin_2fa_backup_codes_view(request):
         return redirect("admin_login")
 
     try:
-        session = LoginSession.objects.get(
-            session_id=session_id, expires_at__gt=timezone.now()
-        )
+        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
         user = session.user
     except LoginSession.DoesNotExist:
         return redirect("admin_login")
@@ -651,6 +634,4 @@ def admin_2fa_backup_codes_view(request):
         # User has acknowledged the backup codes
         return redirect("admin:index")
 
-    return render(
-        request, "2fa_backup_codes.html", {"backup_codes": backup_codes, "user": user}
-    )
+    return render(request, "2fa_backup_codes.html", {"backup_codes": backup_codes, "user": user})

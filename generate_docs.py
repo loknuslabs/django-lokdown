@@ -59,9 +59,7 @@ def generate_documentation():
         return False
 
     # Generate HTML documentation
-    if not run_command(
-        "python docs/convert_to_html.py", "Generating HTML documentation"
-    ):
+    if not run_command("python docs/convert_to_html.py", "Generating HTML documentation"):
         return False
 
     # Create docs directory if it doesn't exist
@@ -107,9 +105,7 @@ python generate_docs.py
 
 Generated on: {date}
 """.format(
-        date=subprocess.run(
-            "date", shell=True, capture_output=True, text=True
-        ).stdout.strip()
+        date=subprocess.run("date", shell=True, capture_output=True, text=True).stdout.strip()
     )
 
     with open("docs/README.md", "w") as f:

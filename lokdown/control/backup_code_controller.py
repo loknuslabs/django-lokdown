@@ -27,9 +27,7 @@ from lokdown.serializers import BackupCodeSerializer
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
-@ratelimit(
-    key="ip", rate=f"{settings.BACKUP_CODE_RATE_LIMIT}/m", method=["POST"], block=True
-)
+@ratelimit(key="ip", rate=f"{settings.BACKUP_CODE_RATE_LIMIT}/m", method=["POST"], block=True)
 def verify_backup_code_endpoint(request):
     """Dedicated endpoint for backup code verification with strict rate limiting"""
     serializer = BackupCodeSerializer(data=request.data)
@@ -41,13 +39,9 @@ def verify_backup_code_endpoint(request):
 
     # Get session
     try:
-        session = LoginSession.objects.get(
-            session_id=session_id, expires_at__gt=timezone.now()
-        )
+        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
     except LoginSession.DoesNotExist:
-        return Response(
-            {"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Get client IP and user agent
     ip_address = get_client_ip(request)
@@ -72,6 +66,4 @@ def verify_backup_code_endpoint(request):
             }
         )
     else:
-        return Response(
-            {"error": "Invalid backup code"}, status=status.HTTP_401_UNAUTHORIZED
-        )
+        return Response({"error": "Invalid backup code"}, status=status.HTTP_401_UNAUTHORIZED)

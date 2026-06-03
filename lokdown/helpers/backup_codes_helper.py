@@ -33,16 +33,13 @@ def generate_backup_codes() -> list:
     codes = []
     for _ in range(settings.BACKUP_CODES_COUNT):
         code = "".join(
-            secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-            for _ in range(settings.BACKUP_CODE_LENGTH)
+            secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(settings.BACKUP_CODE_LENGTH)
         )
         codes.append(code)
     return codes
 
 
-def verify_backup_code(
-    user: User, backup_code: str, ip_address: str = None, user_agent: str = None
-) -> bool:
+def verify_backup_code(user: User, backup_code: str, ip_address: str = None, user_agent: str = None) -> bool:
     """Verify backup code and remove it if valid"""
     if not user_backup_codes_exist(user):
         return False

@@ -35,9 +35,7 @@ ALLOWED_HOSTS = ["*"]
 
 csrf_trusted_origins_env = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 # Split the environment variable into a list, or use the default if the variable is empty
-CSRF_TRUSTED_ORIGINS = (
-    csrf_trusted_origins_env.split(",") if csrf_trusted_origins_env else ""
-)
+CSRF_TRUSTED_ORIGINS = csrf_trusted_origins_env.split(",") if csrf_trusted_origins_env else ""
 
 # Optional: specify the domain for the CSRF cookie
 CSRF_COOKIE_DOMAIN = os.getenv("DJANGO_CSRF_COOKIE_DOMAIN", "")
@@ -197,9 +195,7 @@ REST_FRAMEWORK = {
         "anon": "100/hour",
         "user": "1000/hour",
     },
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication"
-    ],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"],
 }
 
 SIMPLE_JWT = {

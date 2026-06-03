@@ -57,9 +57,7 @@ def generate_passkey_options(user):
         )
         return options
     except Exception as e:
-        logger.error(
-            f"Failed to generate passkey options for user {user.username}: {str(e)}"
-        )
+        logger.error(f"Failed to generate passkey options for user {user.username}: {str(e)}")
         return None
 
 
@@ -83,9 +81,7 @@ def create_login_session_for_passkey(user, challenge, request=None):
 
         return session_id
     except Exception as e:
-        logger.error(
-            f"Failed to create login session for user {user.username}: {str(e)}"
-        )
+        logger.error(f"Failed to create login session for user {user.username}: {str(e)}")
         return None
 
 
@@ -122,9 +118,7 @@ def save_passkey_to_database(user, verification):
     """Save passkey credential to database after successful verification"""
     try:
         # Convert public key to base64 for storage
-        public_key_base64 = base64.b64encode(verification.credential_public_key).decode(
-            "utf-8"
-        )
+        public_key_base64 = base64.b64encode(verification.credential_public_key).decode("utf-8")
 
         PasskeyCredential.objects.create(
             user=user,
@@ -136,9 +130,7 @@ def save_passkey_to_database(user, verification):
         )
         return True
     except Exception as e:
-        logger.error(
-            f"Failed to save passkey to database for user {user.username}: {str(e)}"
-        )
+        logger.error(f"Failed to save passkey to database for user {user.username}: {str(e)}")
         return False
 
 
@@ -156,9 +148,7 @@ def setup_passkey_backup_codes(user, verification):
 
         return True
     except Exception as e:
-        logger.error(
-            f"Failed to complete passkey setup for user {user.username}: {str(e)}"
-        )
+        logger.error(f"Failed to complete passkey setup for user {user.username}: {str(e)}")
         return False
 
 
@@ -199,9 +189,7 @@ def verify_passkey(user: User, response_data: dict, session_id: str) -> bool:
                 logger.info(f"Passkey verification successful for user {user.id}")
                 return True
             except Exception as e:
-                logger.warning(
-                    f"Passkey verification failed for credential {credential.id}: {str(e)}"
-                )
+                logger.warning(f"Passkey verification failed for credential {credential.id}: {str(e)}")
                 # Try next credential
                 continue
 

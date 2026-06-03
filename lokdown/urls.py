@@ -39,9 +39,7 @@ urlpatterns = [
         passkey_controller.remove_passkey_credential,
         name="remove_passkey_credential",
     ),
-    path(
-        "auth/2fa/passkey/setup", passkey_controller.setup_passkey, name="setup_passkey"
-    ),
+    path("auth/2fa/passkey/setup", passkey_controller.setup_passkey, name="setup_passkey"),
     path(
         "auth/2fa/passkey/verify",
         passkey_controller.verify_passkey_setup,

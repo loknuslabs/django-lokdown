@@ -50,9 +50,7 @@ def setup_totp(request):
     import pyotp
 
     totp = pyotp.TOTP(secret)
-    provisioning_uri = totp.provisioning_uri(
-        name=user.email or user.username, issuer_name=settings.WEBAUTHN_RP_NAME
-    )
+    provisioning_uri = totp.provisioning_uri(name=user.email or user.username, issuer_name=settings.WEBAUTHN_RP_NAME)
 
     return Response(
         {
@@ -102,10 +100,6 @@ def verify_totp_setup(request):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
         else:
-            return Response(
-                {"error": "Invalid TOTP token"}, status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "Invalid TOTP token"}, status=status.HTTP_401_UNAUTHORIZED)
     else:
-        return Response(
-            {"error": "Missing secret or token"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Missing secret or token"}, status=status.HTTP_400_BAD_REQUEST)

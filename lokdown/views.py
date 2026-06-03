@@ -66,9 +66,7 @@ def login_init(request):
     # Authenticate user
     user = authenticate(username=username, password=password)
     if not user:
-        return Response(
-            {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
-        )
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     # Check 2FA status
     requires_2fa = is_2fa_enabled(user)
@@ -80,8 +78,7 @@ def login_init(request):
             user=user,
             session_id=session_id,
             requires_2fa=True,
-            expires_at=timezone.now()
-            + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
+            expires_at=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
             ip_address=get_client_ip(request),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
         )
@@ -121,9 +118,7 @@ def login_init(request):
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
-@ratelimit(
-    key="ip", rate=f"{settings.BACKUP_CODE_RATE_LIMIT}/m", method=["POST"], block=True
-)
+@ratelimit(key="ip", rate=f"{settings.BACKUP_CODE_RATE_LIMIT}/m", method=["POST"], block=True)
 def login_verify(request):
     """Verify 2FA and complete login"""
     serializer = LoginVerifySerializer(data=request.data)
@@ -135,9 +130,7 @@ def login_verify(request):
     passkey_response = serializer.validated_data.get("passkey_response")
     backup_code = serializer.validated_data.get("backup_code")
 
-    session = get_session(
-        session_id, totp_token, passkey_response, backup_code, request
-    )
+    session = get_session(session_id, totp_token, passkey_response, backup_code, request)
     if type(session) is Response:
         return session
 
@@ -229,9 +222,7 @@ def admin_2fa_auth_options(request):
     session_id = request.session.get("admin_2fa_session_id")
     session, error = validate_session_data(session_id)
     if not session:
-        return Response(
-            {"error": "No active session"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "No active session"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Generate authentication options
     options = custom_generate_authentication_options()
@@ -276,13 +267,9 @@ def admin_2fa_verify_api(request):
     backup_code = request.data.get("backup_code")
 
     try:
-        session = LoginSession.objects.get(
-            session_id=session_id, expires_at__gt=timezone.now()
-        )
+        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
     except LoginSession.DoesNotExist:
-        return Response(
-            {"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Verify 2FA method
     if totp_token and has_totp_enabled(session.user):

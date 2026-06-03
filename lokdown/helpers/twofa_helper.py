@@ -82,9 +82,7 @@ def serialize_webauthn_options(options, visited=None):
             # Convert snake_case to camelCase
             camel_key = field_mapping.get(key, key)
 
-            if hasattr(value, "__dict__") and not isinstance(
-                value, (str, int, float, bool)
-            ):
+            if hasattr(value, "__dict__") and not isinstance(value, (str, int, float, bool)):
                 # Handle nested objects
                 result[camel_key] = serialize_webauthn_options(value, visited)
             elif isinstance(value, bytes):
@@ -105,9 +103,7 @@ def serialize_webauthn_options(options, visited=None):
                 result[camel_key] = {"name": value.name, "id": value.id}
             elif key == "pub_key_cred_params":
                 # Special handling for pub key cred params
-                result[camel_key] = [
-                    {"alg": param.alg, "type": param.type} for param in value
-                ]
+                result[camel_key] = [{"alg": param.alg, "type": param.type} for param in value]
             elif key == "authenticator_selection":
                 # Special handling for authenticator selection
                 result[camel_key] = {

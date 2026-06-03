@@ -1,8 +1,6 @@
 from configuration.settings import *  # Import base settings
 
-REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = [
-    "rest_framework.authentication.SessionAuthentication"
-]
+REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = ["rest_framework.authentication.SessionAuthentication"]
 
 SECURE_SSL_REDIRECT = False
 CSRF_COOKIE_SECURE = False

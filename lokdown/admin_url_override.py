@@ -139,9 +139,7 @@ def override_admin_urls(urlpatterns):
                     path("", admin.site.urls),
                 ]
 
-            urlpatterns[adjusted_index] = path(
-                "admin/", include(get_standard_admin_with_current_user())
-            )
+            urlpatterns[adjusted_index] = path("admin/", include(get_standard_admin_with_current_user()))
     else:
         # If no admin pattern found, add our 2FA-enabled admin URLs
         if getattr(settings, "ADMIN_2FA_REQUIRED", False):
@@ -169,9 +167,6 @@ def override_admin_urls(urlpatterns):
                     path("", admin.site.urls),
                 ]
 
-            urlpatterns.extend(
-                redirect_patterns
-                + [path("admin/", include(get_standard_admin_with_current_user()))]
-            )
+            urlpatterns.extend(redirect_patterns + [path("admin/", include(get_standard_admin_with_current_user()))])
 
     return urlpatterns

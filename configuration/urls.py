@@ -22,13 +22,10 @@ class TaggedTokenRefreshView(TokenRefreshView):
 
 def index(request):
     # Adjust this URL to match the URL pattern for your Swagger documentation
-    swagger_url = (
-        "/api/schema/swagger-ui/"  # This should be the URL where Swagger UI is served
-    )
+    swagger_url = "/api/schema/swagger-ui/"  # This should be the URL where Swagger UI is served
 
     return HttpResponse(
-        f"Penny Pusher (v{VERSION})<br><br>"
-        f'<a href="{swagger_url}" target="_blank">Go to API Documentation</a>'
+        f"Penny Pusher (v{VERSION})<br><br>" f'<a href="{swagger_url}" target="_blank">Go to API Documentation</a>'
     )
 
 
