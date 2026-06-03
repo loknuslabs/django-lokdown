@@ -147,7 +147,6 @@ if (method === 'passkey') {
 # Store codes in session for immediate display
 request.session['regenerated_backup_codes'] = new_codes
 request.session['regenerated_backup_codes_count'] = updated
-return redirect('/api/admin/backup-codes/display')
 ```
 
 ### Security Enhancements
@@ -266,7 +265,7 @@ return redirect('/api/admin/backup-codes/display')
 ```
 
 #### 3. Setup WebAuthn Passkey
-**Endpoint:** `POST /api/auth/2fa/setup/passkey`
+**Endpoint:** `POST /api/auth/2fa/passkey/setup`
 **Description:** Generate challenge for WebAuthn passkey registration.
 
 **Response:**
@@ -291,7 +290,7 @@ return redirect('/api/admin/backup-codes/display')
 ```
 
 #### 4. Verify WebAuthn Passkey Setup
-**Endpoint:** `POST /api/auth/2fa/verify/passkey`
+**Endpoint:** `POST /api/auth/2fa/passkey/verify`
 **Description:** Verify WebAuthn passkey registration response.
 
 **Request:**
@@ -404,7 +403,7 @@ curl -X POST http://localhost:8000/api/auth/2fa/verify/totp \
 
 1. **Setup Passkey:**
 ```bash
-curl -X POST http://localhost:8000/api/auth/2fa/setup/passkey \
+curl -X POST http://localhost:8000/api/auth/2fa/passkey/setup \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 ```
@@ -412,7 +411,7 @@ curl -X POST http://localhost:8000/api/auth/2fa/setup/passkey \
 2. **Use the response** to register your passkey with the WebAuthn API in your frontend:
 ```javascript
 // Frontend JavaScript example
-const options = await fetch('/api/auth/2fa/setup/passkey', {
+const options = await fetch('/api/auth/2fa/passkey/setup', {
     method: 'POST',
     headers: {
         'Authorization': 'Bearer YOUR_ACCESS_TOKEN',
@@ -426,7 +425,7 @@ const credential = await navigator.credentials.create({
 });
 
 // Send to server for verification
-await fetch('/api/auth/2fa/verify/passkey', {
+await fetch('/api/auth/2fa/passkey/verify', {
     method: 'POST',
     headers: {
         'Authorization': 'Bearer YOUR_ACCESS_TOKEN',

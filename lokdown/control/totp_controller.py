@@ -36,11 +36,11 @@ def setup_totp(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    user_id = serializer.validated_data['user_id']
+    user_id = serializer.validated_data["user_id"]
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Generate TOTP secret and QR code
     secret = generate_totp_secret()
@@ -54,9 +54,9 @@ def setup_totp(request):
 
     return Response(
         {
-            'secret': secret,
-            'qr_code': qr_base64,
-            'provisioning_uri': provisioning_uri,
+            "secret": secret,
+            "qr_code": qr_base64,
+            "provisioning_uri": provisioning_uri,
         }
     )
 
@@ -79,26 +79,27 @@ def verify_totp_setup(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    user_id = serializer.validated_data['user_id']
-    totp_token = serializer.validated_data['totp_token']
-    secret = serializer.validated_data.get('secret')
+    user_id = serializer.validated_data["user_id"]
+    totp_token = serializer.validated_data["totp_token"]
+    secret = serializer.validated_data.get("secret")
 
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
 
     if secret and totp_token:
         # Verify the TOTP token
         if verify_totp_token_setup(secret, totp_token):
             # Complete TOTP setup
             if setup_totp_complete(user, secret):
-                return Response({'message': 'TOTP setup verified successfully'})
+                return Response({"message": "TOTP setup verified successfully"})
             else:
                 return Response(
-                    {'error': 'Failed to complete TOTP setup'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    {"error": "Failed to complete TOTP setup"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
         else:
-            return Response({'error': 'Invalid TOTP token'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"error": "Invalid TOTP token"}, status=status.HTTP_401_UNAUTHORIZED)
     else:
-        return Response({'error': 'Missing secret or token'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Missing secret or token"}, status=status.HTTP_400_BAD_REQUEST)

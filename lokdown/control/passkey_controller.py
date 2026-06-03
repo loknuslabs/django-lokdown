@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth.models import User
 import logging
+
+from lokdown.helpers.backup_codes_helper import user_backup_codes_exist
 from lokdown.helpers.passkey_helper import (
     generate_passkey_options,
     create_login_session_for_passkey,
@@ -46,26 +48,33 @@ def setup_passkey(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    user_id = serializer.validated_data['user_id']
+    user_id = serializer.validated_data["user_id"]
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Generate passkey options
     options = generate_passkey_options(user)
     if not options:
-        return Response({'error': 'Failed to generate passkey options'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {"error": "Failed to generate passkey options"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
+    # todo not sure if this is needed
     # Create login session for passkey setup
     session_id = create_login_session_for_passkey(user, options.challenge, request)
     if not session_id:
-        return Response({'error': 'Failed to create login session'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {"error": "Failed to create login session"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
     # Serialize options
     serialized_options = serialize_webauthn_options(options)
 
-    return Response({'session_id': session_id, 'options': serialized_options})
+    return Response({"session_id": session_id, "options": serialized_options})
 
 
 @extend_schema(
@@ -86,33 +95,32 @@ def verify_passkey_setup(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    user_id = serializer.validated_data['user_id']
-    passkey_response = serializer.validated_data['passkey_response']
-
-    try:
-        user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_400_BAD_REQUEST)
+    user = request.user
+    passkey_response = serializer.validated_data.get("passkey_response")
 
     try:
         # Get the session for challenge verification
         session = user.login_sessions.last()
         if not session or not session.challenge:
-            return Response({'error': 'No valid session found'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "No valid session found"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verify the passkey registration response
         verification = verify_passkey_registration(passkey_response, session.challenge)
         if not verification:
-            return Response({'error': 'Invalid passkey response'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response(
+                {"error": "Invalid passkey response"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
-        # Complete passkey setup
-        if setup_passkey_backup_codes(user, verification):
-            return Response({'message': 'Passkey setup verified successfully'})
-        else:
-            return Response({'error': 'Failed to complete passkey setup'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # check if backup codes exist already, and if not we will create them
+        backup_codes_exist = user_backup_codes_exist(user)
+        if not backup_codes_exist:
+            setup_passkey_backup_codes(user, verification)
+
+        return Response({"message": "Passkey setup verified successfully"})
     except Exception as e:
         error_msg = handle_2fa_error(e, user, "Passkey setup")
-        return Response({'error': error_msg}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"error": error_msg}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 @extend_schema(
@@ -130,27 +138,31 @@ def verify_passkey_setup(request):
 @permission_classes([AllowAny])
 def get_passkey_auth_options(request):
     """Generate passkey authentication options for login"""
-    session_id = request.data.get('session_id')
+    session_id = request.data.get("session_id")
 
     # Validate session
     try:
         session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
     except LoginSession.DoesNotExist:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Check if user has passkey enabled
     if not has_passkey_enabled(session.user):
-        return Response({'error': 'User does not have passkey enabled'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "User does not have passkey enabled"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     # Generate authentication options
     options = custom_generate_authentication_options()
     if not options:
         return Response(
-            {'error': 'Failed to generate authentication options'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            {"error": "Failed to generate authentication options"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
     # Store challenge in session
-    challenge_base64 = base64.b64encode(options.challenge).decode('utf-8')
+    challenge_base64 = base64.b64encode(options.challenge).decode("utf-8")
     session.challenge = challenge_base64
     session.save()
 
@@ -159,10 +171,10 @@ def get_passkey_auth_options(request):
 
     return Response(
         {
-            'challenge': challenge_base64,
-            'rp_id': options.rp_id,
-            'timeout': options.timeout,
-            'options': serialized_options,
+            "challenge": challenge_base64,
+            "rp_id": options.rp_id,
+            "timeout": options.timeout,
+            "options": serialized_options,
         }
     )
 
@@ -189,7 +201,7 @@ def get_passkey_credentials(request):
     description="Remove specific passkey credential",
     tags=["2FA Passkey"],
     parameters=[
-        OpenApiParameter(name='credential_id', type=str, location='query'),
+        OpenApiParameter(name="credential_id", type=str, location="query"),
     ],
     responses={
         200: OpenApiResponse(description="Passkey credential removed"),
@@ -200,13 +212,16 @@ def get_passkey_credentials(request):
 @permission_classes([IsAuthenticated])
 def remove_passkey_credential(request):
     """Remove passkey credential"""
-    credential_id = request.GET.get('credential_id')
+    credential_id = request.GET.get("credential_id")
     if not credential_id:
-        return Response({'error': 'credential_id parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "credential_id parameter required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     try:
         credential = request.user.passkey_credentials.get(credential_id=credential_id)
         credential.delete()
-        return Response({'message': 'Passkey credential removed'})
+        return Response({"message": "Passkey credential removed"})
     except PasskeyCredential.DoesNotExist:
-        return Response({'error': 'Credential not found'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Credential not found"}, status=status.HTTP_400_BAD_REQUEST)
