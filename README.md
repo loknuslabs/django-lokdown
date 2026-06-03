@@ -185,6 +185,8 @@ request.session['regenerated_backup_codes_count'] = updated
 
 ## API Endpoints
 
+Detailed authentication and 2FA workflows: **[lokdown/docs/AUTHENTICATION.md](lokdown/docs/AUTHENTICATION.md)**.
+
 ### Authentication Flow
 
 #### 1. Login Initiation
