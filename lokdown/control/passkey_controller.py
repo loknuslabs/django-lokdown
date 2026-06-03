@@ -135,6 +135,7 @@ def remove_passkey_credential(request):
     summary="Admin passkey authentication options",
     description="Generate passkey challenge for admin 2FA verify page (uses Django session cookie).",
     tags=["2FA Passkey"],
+    request=None,
     responses={
         200: AdminPasskeyAuthOptionsResponseSerializer,
         400: OpenApiResponse(description="No active session"),

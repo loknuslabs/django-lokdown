@@ -30,6 +30,7 @@ def get_2fa_status(request):
 @extend_schema(
     summary="Disable 2FA",
     tags=["2FA"],
+    request=None,
     responses={200: DisableTwoFAResponseSerializer},
 )
 @api_view(["POST"])
