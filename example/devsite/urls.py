@@ -6,7 +6,7 @@ from django.urls import path, include
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from devsite.settings import VERSION
-from lokdown.admin_url_override import override_admin_urls
+from lokdown.urls import override_admin_urls
 
 
 @extend_schema(

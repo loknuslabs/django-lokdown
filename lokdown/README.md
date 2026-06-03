@@ -31,7 +31,7 @@ INSTALLED_APPS = [
 ```python
 # urls.py
 from django.urls import path, include
-from lokdown.admin_url_override import override_admin_urls
+from lokdown.urls import override_admin_urls
 
 urlpatterns = [
     # ... your other URLs
@@ -81,7 +81,7 @@ BACKUP_CODE_LENGTH = 10
 # urls.py
 from django.urls import path, include
 from django.contrib import admin
-from lokdown.admin_url_override import override_admin_urls
+from lokdown.urls import override_admin_urls
 
 urlpatterns = [
     # Your app URLs
@@ -246,7 +246,7 @@ When `ADMIN_2FA_REQUIRED` is enabled, the security app automatically overrides D
 To enable admin 2FA in any Django project, simply add this to your `urls.py`:
 
 ```python
-from lokdown.admin_url_override import override_admin_urls
+from lokdown.urls import override_admin_urls
 
 urlpatterns = [
     # ... your other URLs

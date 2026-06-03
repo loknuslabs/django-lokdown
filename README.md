@@ -47,7 +47,7 @@ django-lokdown/
 ├── lokdown/               # Pip package (published to PyPI)
 │   ├── admin.py           # Django admin interface
 │   ├── admin_auth.py      # Admin authentication logic
-│   ├── admin_url_override.py  # Admin URL customization
+│   ├── urls.py                # API routes + override_admin_urls()
 │   ├── apps.py            # Django app configuration
 │   ├── models.py          # Database models
 │   ├── serializers.py     # DRF serializers

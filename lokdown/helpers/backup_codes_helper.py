@@ -64,9 +64,6 @@ def verify_backup_code(user: User, backup_code: str, ip_address: str = None, use
         return False
 
 
-# Fixme should not create backup codes if none exist
-# todo deprecate
 def has_backup_codes(user: User) -> bool:
-    """Check if user has backup codes"""
-    backup_codes_obj = get_or_create_backup_codes(user)
-    return len(backup_codes_obj.codes) > 0
+    """Check if user has backup codes (read-only; no row creation)."""
+    return user_backup_codes_exist(user)
