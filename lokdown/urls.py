@@ -29,7 +29,6 @@ from lokdown.control import totp_controller
 from lokdown.control import twofa_controller
 from lokdown.control.token_controller import CustomTokenObtainPairView, TaggedTokenRefreshView
 
-
 # ---------------------------------------------------------------------------
 # Admin URL helpers (for project root urlpatterns)
 # ---------------------------------------------------------------------------

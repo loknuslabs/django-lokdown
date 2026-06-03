@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Django management utility for the local example project."""
+
 import os
 import sys
 
