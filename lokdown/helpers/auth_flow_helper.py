@@ -171,7 +171,7 @@ def verify_second_factor(
         return Response({"error": "Invalid TOTP token"}, status=status.HTTP_401_UNAUTHORIZED)
 
     if passkey_response and has_passkey_enabled(session.user):
-        if verify_passkey(session.user, passkey_response, session_id):
+        if verify_passkey(session.user, passkey_response, session_id, request):
             _mark_session_verified(session, "passkey")
             return session
         return Response({"error": "Invalid passkey response"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -234,7 +234,7 @@ def complete_totp_setup(user: User, secret: str, totp_token: str) -> tuple[bool,
 
 
 def begin_passkey_registration(user: User, request) -> dict[str, Any] | Response:
-    options = generate_passkey_options(user)
+    options = generate_passkey_options(user, request)
     if not options:
         return Response(
             {"error": "Failed to generate passkey options"},
@@ -260,6 +260,7 @@ def complete_passkey_registration(
     passkey_response: dict | str,
     *,
     create_backup_codes_if_missing: bool = True,
+    request=None,
 ) -> tuple[bool, str | None, list[str]]:
     try:
         session = LoginSession.objects.get(
@@ -273,11 +274,11 @@ def complete_passkey_registration(
     if not session.challenge:
         return False, "No valid session challenge found", []
 
-    verification = verify_passkey_registration(passkey_response, session.challenge)
+    verification = verify_passkey_registration(passkey_response, session.challenge, request)
     if not verification:
         return False, "Invalid passkey response", []
 
-    if not save_passkey_to_database(user, verification):
+    if not save_passkey_to_database(user, verification, request):
         return False, "Failed to save passkey credential", []
 
     backup_codes: list[str] = []
@@ -298,14 +299,14 @@ def validate_login_session(session_id: str | None) -> LoginSession | Response:
     return session
 
 
-def begin_passkey_authentication(session: LoginSession) -> dict[str, Any] | Response:
+def begin_passkey_authentication(session: LoginSession, request=None) -> dict[str, Any] | Response:
     if not has_passkey_enabled(session.user):
         return Response(
             {"error": "User does not have passkey enabled"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    options = custom_generate_authentication_options(session.user)
+    options = custom_generate_authentication_options(session.user, request)
     if not options:
         return Response(
             {"error": "Failed to generate authentication options"},
@@ -365,7 +366,7 @@ def verify_admin_second_factor(
     if passkey_response and has_passkey_enabled(session.user):
         if isinstance(passkey_response, str):
             passkey_response = json.loads(passkey_response)
-        if verify_passkey(session.user, passkey_response, session.session_id):
+        if verify_passkey(session.user, passkey_response, session.session_id, request):
             _mark_session_verified(session, "passkey")
             return True, None
         return False, "Invalid passkey response"
@@ -386,13 +387,15 @@ def verify_admin_second_factor(
     return False, "Invalid 2FA token"
 
 
-def admin_passkey_auth_options_payload(session: LoginSession) -> dict[str, Any] | Response:
+def admin_passkey_auth_options_payload(session: LoginSession, request=None) -> dict[str, Any] | Response:
     """Challenge payload for admin passkey verify template (no nested options)."""
-    result = begin_passkey_authentication(session)
+    result = begin_passkey_authentication(session, request)
     if isinstance(result, Response):
         return result
+    serialized_options = result.get("options") or {}
     return {
         "challenge": result["challenge"],
         "rp_id": result["rp_id"],
         "timeout": result["timeout"],
+        "allow_credentials": serialized_options.get("allowCredentials", []),
     }

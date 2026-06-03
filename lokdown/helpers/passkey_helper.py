@@ -27,12 +27,28 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 from lokdown.helpers.common_helper import get_client_ip
+from lokdown.helpers.webauthn_settings_helper import (
+    get_webauthn_expected_origin,
+    resolve_rp_id,
+)
 from lokdown.models import (
     PasskeyCredential,
     LoginSession,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def repair_base64_form_value(value: str) -> str:
+    """
+    Repair base64 fields corrupted by application/x-www-form-urlencoded (``+`` → space).
+
+    Admin HTML forms POST passkey JSON in a hidden field; API clients send JSON bodies and
+    do not hit this issue.
+    """
+    if " " in value and "+" not in value:
+        return value.replace(" ", "+")
+    return value
 
 
 def normalize_passkey_credential_response(passkey_response: dict | str) -> dict:
@@ -50,6 +66,9 @@ def normalize_passkey_credential_response(passkey_response: dict | str) -> dict:
     if not normalized.get("type"):
         normalized["type"] = "public-key"
 
+    if isinstance(normalized.get("rawId"), str):
+        normalized["rawId"] = repair_base64_form_value(normalized["rawId"])
+
     response = normalized.get("response")
     if isinstance(response, dict):
         response = dict(response)
@@ -59,6 +78,15 @@ def normalize_passkey_credential_response(passkey_response: dict | str) -> dict:
         ):
             if camel not in response and snake in response:
                 response[camel] = response.pop(snake)
+        for field in (
+            "clientDataJSON",
+            "authenticatorData",
+            "signature",
+            "attestationObject",
+            "userHandle",
+        ):
+            if isinstance(response.get(field), str):
+                response[field] = repair_base64_form_value(response[field])
         normalized["response"] = response
 
     return normalized
@@ -97,11 +125,11 @@ def has_passkey_enabled(user: User) -> bool:
     return user.passkey_credentials.exists()
 
 
-def generate_passkey_options(user):
+def generate_passkey_options(user, request=None):
     """Generate passkey registration options"""
     try:
         options = generate_registration_options(
-            rp_id=settings.WEBAUTHN_RP_ID,
+            rp_id=resolve_rp_id(request),
             rp_name=settings.WEBAUTHN_RP_NAME,
             user_name=user.username,
             user_id=str(user.id).encode(),
@@ -143,7 +171,7 @@ def create_login_session_for_passkey(user, challenge, request=None):
         return None
 
 
-def verify_passkey_registration(passkey_response, expected_challenge):
+def verify_passkey_registration(passkey_response, expected_challenge, request=None):
     """Verify passkey registration response"""
     try:
         passkey_response_dict = normalize_passkey_credential_response(passkey_response)
@@ -155,8 +183,8 @@ def verify_passkey_registration(passkey_response, expected_challenge):
         verification = verify_registration_response(
             credential=passkey_response_dict,
             expected_challenge=expected_challenge_bytes,
-            expected_rp_id=settings.WEBAUTHN_RP_ID,
-            expected_origin=settings.WEBAUTHN_ORIGIN,
+            expected_rp_id=resolve_rp_id(request),
+            expected_origin=get_webauthn_expected_origin(),
         )
 
         return verification
@@ -168,7 +196,7 @@ def verify_passkey_registration(passkey_response, expected_challenge):
         return None
 
 
-def save_passkey_to_database(user, verification):
+def save_passkey_to_database(user, verification, request=None):
     """Save passkey credential to database after successful verification"""
     try:
         # Convert public key to base64 for storage
@@ -179,7 +207,7 @@ def save_passkey_to_database(user, verification):
             credential_id=bytes_to_base64url(verification.credential_id),
             public_key=public_key_base64,
             sign_count=verification.sign_count,
-            rp_id=settings.WEBAUTHN_RP_ID,
+            rp_id=resolve_rp_id(request),
             user_handle=str(user.id),
         )
         return True
@@ -188,7 +216,7 @@ def save_passkey_to_database(user, verification):
         return False
 
 
-def verify_passkey(user: User, response_data: dict | str, session_id: str) -> bool:
+def verify_passkey(user: User, response_data: dict | str, session_id: str, request=None) -> bool:
     """Verify passkey authentication response"""
     try:
         response_data = normalize_passkey_credential_response(response_data)
@@ -217,8 +245,8 @@ def verify_passkey(user: User, response_data: dict | str, session_id: str) -> bo
                 verification = verify_authentication_response(
                     credential=response_data,
                     expected_challenge=expected_challenge,
-                    expected_rp_id=settings.WEBAUTHN_RP_ID,
-                    expected_origin=settings.WEBAUTHN_ORIGIN,
+                    expected_rp_id=credential.rp_id,
+                    expected_origin=get_webauthn_expected_origin(),
                     credential_public_key=credential_public_key,
                     credential_current_sign_count=credential.sign_count,
                     require_user_verification=True,
@@ -244,12 +272,12 @@ def verify_passkey(user: User, response_data: dict | str, session_id: str) -> bo
         return False
 
 
-def custom_generate_authentication_options(user: User):
+def custom_generate_authentication_options(user: User, request=None):
     """Generate passkey authentication options scoped to the user's registered credentials."""
     try:
         allow_credentials = build_allow_credentials(user)
         options = generate_authentication_options(
-            rp_id=settings.WEBAUTHN_RP_ID,
+            rp_id=resolve_rp_id(request),
             user_verification=UserVerificationRequirement.REQUIRED,
             allow_credentials=allow_credentials or None,
         )

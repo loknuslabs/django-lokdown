@@ -54,6 +54,7 @@ CACHES = {
 
 WEBAUTHN_RP_ID = "localhost"
 WEBAUTHN_RP_NAME = "Lokdown Test"
+WEBAUTHN_ORIGINS = ["http://testserver"]
 WEBAUTHN_ORIGIN = "http://testserver"
 
 TWOFA_SESSION_TIMEOUT = 10

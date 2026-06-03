@@ -103,8 +103,8 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SERIALIZER = "django.contrib.sessions.serializers.JSONSerializer"
 
-WEBAUTHN_ORIGIN = "http://localhost:5173"
-WEBAUTHN_RP_ID = "localhost"
+WEBAUTHN_ORIGIN = "http://localhost:8000"
+WEBAUTHN_RP_ID = os.environ.get("WEBAUTHN_RP_ID", "localhost")
 WEBAUTHN_RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "Lokdown Local")
 
 BACKUP_CODE_RATE_LIMIT = int(os.environ.get("BACKUP_CODE_RATE_LIMIT", "10"))

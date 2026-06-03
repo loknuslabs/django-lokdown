@@ -66,9 +66,13 @@ INSTALLED_APPS = [
 ]
 
 # WebAuthn (required for passkeys)
-WEBAUTHN_RP_ID = "localhost"          # registrable domain, no scheme/port
+WEBAUTHN_RP_ID = "localhost"          # fallback rpId; admin/API use request hostname when available
 WEBAUTHN_RP_NAME = "My Application"
-WEBAUTHN_ORIGIN = "http://localhost:8000"  # full origin with scheme
+WEBAUTHN_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+WEBAUTHN_ORIGIN = "http://localhost:8000"  # optional; first origin if ORIGINS unset
 
 # 2FA behaviour
 TWOFA_SESSION_TIMEOUT = 10            # minutes, pending LoginSession lifetime

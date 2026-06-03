@@ -162,6 +162,7 @@ def admin_2fa_setup_passkey_view(request):
                 session.session_id,
                 passkey_response,
                 create_backup_codes_if_missing=True,
+                request=request,
             )
             if ok:
                 messages.success(request, "Passkey setup completed successfully!")
@@ -232,6 +233,7 @@ def admin_current_user_passkey_setup(request):
             session_id,
             passkey_response,
             create_backup_codes_if_missing=True,
+            request=request,
         )
         if ok:
             del request.session["current_user_passkey_session_id"]

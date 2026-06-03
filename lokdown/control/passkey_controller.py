@@ -64,6 +64,7 @@ def verify_passkey_setup(request):
             request.user,
             data["session_id"],
             data["passkey_response"],
+            request=request,
         )
         if not ok:
             return Response(ErrorResponseSerializer({"error": error}).data, status=status.HTTP_401_UNAUTHORIZED)
@@ -160,7 +161,7 @@ def admin_2fa_auth_options(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    payload = admin_passkey_auth_options_payload(session)
+    payload = admin_passkey_auth_options_payload(session, request)
     if isinstance(payload, Response):
         return payload
     return Response(AdminPasskeyAuthOptionsResponseSerializer(payload).data)

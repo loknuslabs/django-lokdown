@@ -72,3 +72,10 @@ class TestPasskeyHelper:
         result = generate_passkey_options(user)
         assert result is not None
         mock_gen.assert_called_once()
+
+
+    def test_repair_base64_form_value_fixes_plus_to_space(self):
+        from lokdown.helpers.passkey_helper import repair_base64_form_value
+
+        assert repair_base64_form_value("abc def==") == "abc+def=="
+        assert repair_base64_form_value("abc+def==") == "abc+def=="
