@@ -1,7 +1,6 @@
 # ============================================================================
 # Session Management Helper Functions
 # ============================================================================
-
 import uuid
 import logging
 from datetime import timedelta
@@ -32,7 +31,7 @@ def create_authentication_session(user, request=None):
 
         if request:
             session.ip_address = get_client_ip(request)
-            session.user_agent = request.META.get('HTTP_USER_AGENT', '')
+            session.user_agent = request.META.get("HTTP_USER_AGENT", "")
             session.save()
 
         return session_id
@@ -57,7 +56,7 @@ def get_session(session_id, totp_token, passkey_response, backup_code, request):
     try:
         session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
     except LoginSession.DoesNotExist:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Verify 2FA method
     if totp_token and has_totp_enabled(session.user):
@@ -65,25 +64,34 @@ def get_session(session_id, totp_token, passkey_response, backup_code, request):
             session.totp_verified = True
             session.save()
         else:
-            return Response({'error': 'Invalid TOTP token'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"error": "Invalid TOTP token"}, status=status.HTTP_401_UNAUTHORIZED)
 
     elif passkey_response and has_passkey_enabled(session.user):
         if verify_passkey(session.user, passkey_response, session_id):
             session.passkey_verified = True
             session.save()
         else:
-            return Response({'error': 'Invalid passkey response'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response(
+                {"error": "Invalid passkey response"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
     elif backup_code:
         if verify_backup_code(
-            session.user, backup_code, get_client_ip(request), request.META.get('HTTP_USER_AGENT', '')
+            session.user,
+            backup_code,
+            get_client_ip(request),
+            request.META.get("HTTP_USER_AGENT", ""),
         ):
             session.totp_verified = True  # Mark as verified for backup codes
             session.save()
         else:
-            return Response({'error': 'Invalid backup code'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"error": "Invalid backup code"}, status=status.HTTP_401_UNAUTHORIZED)
 
     else:
-        return Response({'error': 'No valid 2FA method provided'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "No valid 2FA method provided"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     return True

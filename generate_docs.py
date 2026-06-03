@@ -13,14 +13,14 @@ from pathlib import Path
 def setup_environment():
     """Set up environment variables for documentation generation"""
     env_vars = {
-        'SECRET_KEY': 'test-key-for-docs-generation',
-        'DEBUG': 'True',
-        'LOCAL_DB': 'True',
-        'ALLOW_PUBLIC_REGISTRATION': 'False',
-        'ADMIN_2FA_REQUIRED': 'False',
-        'WEBAUTHN_RP_NAME': 'PennyPusher Local',
-        'WEBAUTHN_ORIGIN': 'http://localhost:8000',
-        'WEBAUTHN_RP_ID': 'localhost',
+        "SECRET_KEY": "test-key-for-docs-generation",
+        "DEBUG": "True",
+        "LOCAL_DB": "True",
+        "ALLOW_PUBLIC_REGISTRATION": "False",
+        "ADMIN_2FA_REQUIRED": "False",
+        "WEBAUTHN_RP_NAME": "PennyPusher Local",
+        "WEBAUTHN_ORIGIN": "http://localhost:8000",
+        "WEBAUTHN_RP_ID": "localhost",
     }
 
     for key, value in env_vars.items():
@@ -53,7 +53,8 @@ def generate_documentation():
 
     # Generate OpenAPI schema
     if not run_command(
-        "python manage.py spectacular --file api_schema.json --format openapi-json", "Generating OpenAPI schema"
+        "python manage.py spectacular --file api_schema.json --format openapi-json",
+        "Generating OpenAPI schema",
     ):
         return False
 

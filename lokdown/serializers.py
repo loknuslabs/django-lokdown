@@ -1,6 +1,11 @@
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
-from .models import UserTimeBasedOneTimePasswords, PasskeyCredential, LoginSession, BackupCodes
+from .models import (
+    UserTimeBasedOneTimePasswords,
+    PasskeyCredential,
+    LoginSession,
+    BackupCodes,
+)
 
 
 class LoginInitSerializer(serializers.Serializer):
@@ -41,7 +46,7 @@ class TwoFactorAuthSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserTimeBasedOneTimePasswords
-        fields = ['is_enabled', 'totp_enabled', 'passkey_enabled']
+        fields = ["is_enabled", "totp_enabled", "passkey_enabled"]
 
     @extend_schema_field(serializers.BooleanField)
     def get_is_enabled(self, obj):
@@ -70,13 +75,13 @@ class PasskeyCredentialSerializer(serializers.ModelSerializer):
     class Meta:
         model = PasskeyCredential
         fields = [
-            'id',
-            'credential_id',
-            'sign_count',
-            'rp_id',
-            'user_handle',
-            'created_at',
-            'last_used',
+            "id",
+            "credential_id",
+            "sign_count",
+            "rp_id",
+            "user_handle",
+            "created_at",
+            "last_used",
         ]
 
 
@@ -84,13 +89,13 @@ class LoginSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = LoginSession
         fields = [
-            'session_id',
-            'is_authenticated',
-            'requires_2fa',
-            'totp_verified',
-            'passkey_verified',
-            'created_at',
-            'expires_at',
+            "session_id",
+            "is_authenticated",
+            "requires_2fa",
+            "totp_verified",
+            "passkey_verified",
+            "created_at",
+            "expires_at",
         ]
 
 
@@ -98,10 +103,10 @@ class BackupCodesSerializer(serializers.ModelSerializer):
     class Meta:
         model = BackupCodes
         fields = [
-            'id',
-            'codes',
-            'created_at',
-            'updated_at',
+            "id",
+            "codes",
+            "created_at",
+            "updated_at",
         ]
 
 

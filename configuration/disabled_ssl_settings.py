@@ -1,6 +1,6 @@
 from configuration.settings import *  # Import base settings
 
-DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
+DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
 
 SECURE_SSL_REDIRECT = False
 CSRF_COOKIE_SECURE = False

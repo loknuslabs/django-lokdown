@@ -32,8 +32,8 @@ def generate_backup_codes() -> list:
     """Generate backup codes for 2FA"""
     codes = []
     for _ in range(settings.BACKUP_CODES_COUNT):
-        code = ''.join(
-            secrets.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(settings.BACKUP_CODE_LENGTH)
+        code = "".join(
+            secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(settings.BACKUP_CODE_LENGTH)
         )
         codes.append(code)
     return codes
@@ -58,8 +58,8 @@ def verify_backup_code(user: User, backup_code: str, ip_address: str = None, use
             FailedBackupCodeAttempt.objects.create(
                 user=user,
                 ip_address=ip_address,
-                user_agent=user_agent or '',
-                attempted_code=backup_code[:3] + '***',  # Store partial for monitoring
+                user_agent=user_agent or "",
+                attempted_code=backup_code[:3] + "***",  # Store partial for monitoring
             )
         return False
 
