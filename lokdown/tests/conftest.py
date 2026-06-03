@@ -52,9 +52,11 @@ def valid_totp_token(totp_secret):
 
 @pytest.fixture
 def user_with_passkey(user, db):
+    from webauthn.helpers import bytes_to_base64url
+
     PasskeyCredential.objects.create(
         user=user,
-        credential_id="test-credential-id",
+        credential_id=bytes_to_base64url(b"test-credential-id"),
         public_key="dGVzdC1wdWJsaWMta2V5",
         sign_count=0,
         rp_id="localhost",

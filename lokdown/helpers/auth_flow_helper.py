@@ -302,7 +302,7 @@ def begin_passkey_authentication(session: LoginSession) -> dict[str, Any] | Resp
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    options = custom_generate_authentication_options()
+    options = custom_generate_authentication_options(session.user)
     if not options:
         return Response(
             {"error": "Failed to generate authentication options"},

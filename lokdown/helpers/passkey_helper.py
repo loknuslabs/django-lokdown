@@ -2,6 +2,7 @@
 # Passkey Helper Functions
 # ============================================================================
 
+import ast
 import json
 import uuid
 import base64
@@ -16,9 +17,12 @@ from webauthn import (
     generate_authentication_options,
     verify_authentication_response,
 )
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 from webauthn.helpers.structs import (
     AttestationConveyancePreference,
     AuthenticatorSelectionCriteria,
+    PublicKeyCredentialDescriptor,
+    PublicKeyCredentialType,
     ResidentKeyRequirement,
     UserVerificationRequirement,
 )
@@ -29,6 +33,63 @@ from lokdown.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_passkey_credential_response(passkey_response: dict | str) -> dict:
+    """
+    Normalize browser/WebAuthn JSON for py_webauthn (requires rawId, type, camelCase response keys).
+    """
+    if isinstance(passkey_response, str):
+        passkey_response = json.loads(passkey_response)
+    if not isinstance(passkey_response, dict):
+        raise TypeError("passkey_response must be a JSON object")
+
+    normalized = dict(passkey_response)
+    if not normalized.get("rawId") and normalized.get("id"):
+        normalized["rawId"] = normalized["id"]
+    if not normalized.get("type"):
+        normalized["type"] = "public-key"
+
+    response = normalized.get("response")
+    if isinstance(response, dict):
+        response = dict(response)
+        for snake, camel in (
+            ("client_data_json", "clientDataJSON"),
+            ("authenticator_data", "authenticatorData"),
+        ):
+            if camel not in response and snake in response:
+                response[camel] = response.pop(snake)
+        normalized["response"] = response
+
+    return normalized
+
+
+def decode_stored_credential_id(credential_id: str) -> bytes:
+    """Decode credential id from DB (base64url or legacy str(bytes) values)."""
+    if credential_id.startswith(("b'", 'b"')):
+        return ast.literal_eval(credential_id)
+    return base64url_to_bytes(credential_id)
+
+
+def build_allow_credentials(user: User) -> list[PublicKeyCredentialDescriptor]:
+    """Build allowCredentials for authentication from stored passkeys."""
+    descriptors = []
+    for credential in user.passkey_credentials.all():
+        try:
+            descriptors.append(
+                PublicKeyCredentialDescriptor(
+                    id=decode_stored_credential_id(credential.credential_id),
+                    type=PublicKeyCredentialType.PUBLIC_KEY,
+                )
+            )
+        except Exception as e:
+            logger.warning(
+                "Skipping passkey credential %s for user %s: %s",
+                credential.id,
+                user.id,
+                e,
+            )
+    return descriptors
 
 
 def has_passkey_enabled(user: User) -> bool:
@@ -85,11 +146,7 @@ def create_login_session_for_passkey(user, challenge, request=None):
 def verify_passkey_registration(passkey_response, expected_challenge):
     """Verify passkey registration response"""
     try:
-        # Parse the passkey response
-        if isinstance(passkey_response, str):
-            passkey_response_dict = json.loads(passkey_response)
-        else:
-            passkey_response_dict = passkey_response
+        passkey_response_dict = normalize_passkey_credential_response(passkey_response)
 
         # Convert stored base64 challenge back to bytes
         expected_challenge_bytes = base64.b64decode(expected_challenge)
@@ -119,7 +176,7 @@ def save_passkey_to_database(user, verification):
 
         PasskeyCredential.objects.create(
             user=user,
-            credential_id=verification.credential_id,
+            credential_id=bytes_to_base64url(verification.credential_id),
             public_key=public_key_base64,
             sign_count=verification.sign_count,
             rp_id=settings.WEBAUTHN_RP_ID,
@@ -131,9 +188,10 @@ def save_passkey_to_database(user, verification):
         return False
 
 
-def verify_passkey(user: User, response_data: dict, session_id: str) -> bool:
+def verify_passkey(user: User, response_data: dict | str, session_id: str) -> bool:
     """Verify passkey authentication response"""
     try:
+        response_data = normalize_passkey_credential_response(response_data)
         session = LoginSession.objects.get(
             session_id=session_id,
             expires_at__gt=timezone.now(),
@@ -158,11 +216,12 @@ def verify_passkey(user: User, response_data: dict, session_id: str) -> bool:
 
                 verification = verify_authentication_response(
                     credential=response_data,
-                    expected_challenge=expected_challenge,  # converted back to bytes
+                    expected_challenge=expected_challenge,
                     expected_rp_id=settings.WEBAUTHN_RP_ID,
                     expected_origin=settings.WEBAUTHN_ORIGIN,
-                    credential_public_key=credential_public_key,  # converted back to bytes
+                    credential_public_key=credential_public_key,
                     credential_current_sign_count=credential.sign_count,
+                    require_user_verification=True,
                 )
 
                 # Update credential sign count
@@ -185,12 +244,14 @@ def verify_passkey(user: User, response_data: dict, session_id: str) -> bool:
         return False
 
 
-def custom_generate_authentication_options():
-    """Generate passkey authentication options"""
+def custom_generate_authentication_options(user: User):
+    """Generate passkey authentication options scoped to the user's registered credentials."""
     try:
+        allow_credentials = build_allow_credentials(user)
         options = generate_authentication_options(
             rp_id=settings.WEBAUTHN_RP_ID,
             user_verification=UserVerificationRequirement.REQUIRED,
+            allow_credentials=allow_credentials or None,
         )
         return options
     except Exception as e:
