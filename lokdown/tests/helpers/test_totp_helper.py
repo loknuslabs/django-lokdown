@@ -3,11 +3,12 @@ import pytest
 
 from lokdown.helpers.totp_helper import (
     generate_totp_secret,
+    get_or_create_totp,
     has_totp_enabled,
     setup_totp_complete,
+    store_pending_totp_secret,
     verify_totp_login,
     verify_totp_token_setup,
-    get_or_create_totp,
 )
 from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes
 
@@ -34,3 +35,14 @@ class TestTotpHelper:
     def test_generate_secret_is_base32(self):
         secret = generate_totp_secret()
         assert len(secret) >= 16
+
+    def test_store_pending_totp_secret(self, user):
+        secret = generate_totp_secret()
+        store_pending_totp_secret(user, secret)
+        two_fa = get_or_create_totp(user)
+        two_fa.refresh_from_db()
+        assert two_fa.pending_totp_secret == secret
+
+    def test_setup_totp_complete_rejects_overwrite(self, user, totp_secret):
+        assert setup_totp_complete(user, totp_secret) is True
+        assert setup_totp_complete(user, generate_totp_secret()) is False

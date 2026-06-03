@@ -13,7 +13,6 @@ class TOTPSetupResponseSerializer(serializers.Serializer):
 
 class TOTPVerifySetupRequestSerializer(serializers.Serializer):
     totp_token = serializers.CharField()
-    secret = serializers.CharField()
 
 
 class MessageResponseSerializer(serializers.Serializer):

@@ -312,7 +312,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-Show the QR code or provisioning URI. Keep `secret` client-side until verification succeeds—it is **not** stored until step 2.
+Show the QR code or provisioning URI. The secret is stored **server-side** as a pending value until verification succeeds.
 
 **2. Confirm**
 
@@ -322,8 +322,7 @@ Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {
-  "totp_token": "123456",
-  "secret": "BASE32SECRET"
+  "totp_token": "123456"
 }
 ```
 
@@ -545,7 +544,7 @@ Base path assumes `path("api/", include("lokdown.urls"))`.
 - [ ] Branch on `requires_2fa` after password login.
 - [ ] For passkey login: call `passkey/options` before `verify`.
 - [ ] Store JWT; refresh via `auth/token/refresh`.
-- [ ] On 2FA setup: keep TOTP `secret` until `verify/totp` succeeds.
+- [ ] On 2FA setup: call `setup/totp` then `verify/totp` with only `totp_token` (pending secret is stored server-side).
 - [ ] On passkey setup: pass `session_id` from setup into verify.
 - [ ] Treat backup codes as single-use; handle 429 on backup attempts.
 

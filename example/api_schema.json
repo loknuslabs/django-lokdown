@@ -318,7 +318,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/MessageResponse"
+                                    "$ref": "#/components/schemas/TwoFactorSetupCompleteResponse"
                                 }
                             }
                         },
@@ -465,7 +465,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/MessageResponse"
+                                    "$ref": "#/components/schemas/TwoFactorSetupCompleteResponse"
                                 }
                             }
                         },
@@ -688,7 +688,8 @@
                     },
                     "timeout": {
                         "type": "integer"
-                    }
+                    },
+                    "allow_credentials": {}
                 },
                 "required": [
                     "challenge",
@@ -1000,14 +1001,9 @@
                     "totp_token": {
                         "type": "string",
                         "minLength": 1
-                    },
-                    "secret": {
-                        "type": "string",
-                        "minLength": 1
                     }
                 },
                 "required": [
-                    "secret",
                     "totp_token"
                 ]
             },
@@ -1075,6 +1071,26 @@
                 },
                 "required": [
                     "session_id"
+                ]
+            },
+            "TwoFactorSetupCompleteResponse": {
+                "type": "object",
+                "description": "Returned after successful TOTP or passkey enrollment verification.",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    },
+                    "backup_codes": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Plaintext backup codes shown once after setup. Empty when passkey enrollment did not generate new codes (user already had codes)."
+                    }
+                },
+                "required": [
+                    "backup_codes",
+                    "message"
                 ]
             },
             "TwoFactorStatusResponse": {

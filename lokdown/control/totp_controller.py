@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from lokdown.helpers.auth_flow_helper import begin_totp_setup, complete_totp_setup
+from lokdown.helpers.totp_helper import has_totp_enabled
 from lokdown.serializers import (
     ErrorResponseSerializer,
     TOTPSetupRequestSerializer,
@@ -23,6 +24,11 @@ from lokdown.serializers import (
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def setup_totp(request):
+    if has_totp_enabled(request.user):
+        return Response(
+            ErrorResponseSerializer({"error": "TOTP is already enabled"}).data,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     payload = begin_totp_setup(request.user)
     return Response(TOTPSetupResponseSerializer(payload).data)
 
@@ -44,7 +50,7 @@ def verify_totp_setup(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     data = serializer.validated_data
-    ok, error, backup_codes = complete_totp_setup(request.user, data["secret"], data["totp_token"])
+    ok, error, backup_codes = complete_totp_setup(request.user, data["totp_token"])
     if not ok:
         code = status.HTTP_401_UNAUTHORIZED if error == "Invalid TOTP token" else status.HTTP_400_BAD_REQUEST
         if error == "Failed to complete TOTP setup":

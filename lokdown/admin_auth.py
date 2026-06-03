@@ -78,7 +78,6 @@ def admin_2fa_setup_view(request):
         setup_type = request.POST.get("setup_type")
         if setup_type == "totp":
             payload = begin_totp_setup(user)
-            request.session["pending_totp_secret"] = payload["secret"]
             return render(
                 request,
                 "2fa_setup_totp.html",
@@ -135,11 +134,9 @@ def admin_2fa_verify_totp_setup(request):
         return redirect("admin_login")
 
     if request.method == "POST":
-        secret = request.session.get("pending_totp_secret")
         totp_token = request.POST.get("totp_token")
-        ok, error, _backup_codes = complete_totp_setup(session.user, secret, totp_token)
+        ok, error, _backup_codes = complete_totp_setup(session.user, totp_token)
         if ok:
-            del request.session["pending_totp_secret"]
             messages.success(request, "TOTP setup completed successfully!")
             return redirect("admin_2fa_backup_codes")
         messages.error(request, error or "Invalid TOTP token.")
@@ -193,16 +190,17 @@ def admin_current_user_totp_setup(request):
     get_or_create_totp(user)
 
     if request.method == "POST":
-        secret = request.session.get("pending_current_user_totp_secret")
-        ok, error, _backup_codes = complete_totp_setup(user, secret, request.POST.get("totp_code"))
+        ok, error, _backup_codes = complete_totp_setup(user, request.POST.get("totp_code"))
         if ok:
-            del request.session["pending_current_user_totp_secret"]
             messages.success(request, "TOTP setup completed successfully!")
             return redirect("admin_current_user_backup_codes")
         messages.error(request, error or "Invalid TOTP code.")
 
+    if has_totp_enabled(user):
+        messages.error(request, "TOTP is already enabled.")
+        return redirect("admin:lokdown_usertimebasedonetimepasswords_changelist")
+
     payload = begin_totp_setup(user)
-    request.session["pending_current_user_totp_secret"] = payload["secret"]
     return render(
         request,
         "2fa_setup_totp.html",

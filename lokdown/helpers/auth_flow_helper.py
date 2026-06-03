@@ -38,13 +38,15 @@ from lokdown.helpers.passkey_helper import (
 from lokdown.helpers.totp_helper import (
     generate_totp_qr_code,
     generate_totp_secret,
+    get_or_create_totp,
     has_totp_enabled,
     setup_totp_complete,
+    store_pending_totp_secret,
     verify_totp_login,
     verify_totp_token_setup,
 )
 from lokdown.helpers.twofa_helper import is_2fa_enabled, serialize_webauthn_options
-from lokdown.models import LoginSession
+from lokdown.models import LoginSession, UserTimeBasedOneTimePasswords
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +215,7 @@ def complete_login_with_tokens(
 
 def begin_totp_setup(user: User) -> dict[str, Any]:
     secret = generate_totp_secret()
+    store_pending_totp_secret(user, secret)
     qr_base64 = generate_totp_qr_code(secret, user)
     totp = pyotp.TOTP(secret)
     provisioning_uri = totp.provisioning_uri(
@@ -226,9 +229,15 @@ def begin_totp_setup(user: User) -> dict[str, Any]:
     }
 
 
-def complete_totp_setup(user: User, secret: str, totp_token: str) -> tuple[bool, str | None, list[str]]:
-    if not secret or not totp_token:
-        return False, "Missing secret or token", []
+def complete_totp_setup(user: User, totp_token: str) -> tuple[bool, str | None, list[str]]:
+    if not totp_token:
+        return False, "Missing token", []
+    if has_totp_enabled(user):
+        return False, "TOTP is already enabled", []
+    two_fa = get_or_create_totp(user)
+    secret = two_fa.pending_totp_secret
+    if not secret:
+        return False, "No pending TOTP setup found", []
     if not verify_totp_token_setup(secret, totp_token):
         return False, "Invalid TOTP token", []
     if not setup_totp_complete(user, secret):
@@ -332,12 +341,14 @@ def begin_passkey_authentication(session: LoginSession, request=None) -> dict[st
 
 def disable_user_2fa(user: User) -> None:
     """Remove all 2FA methods and backup codes for a user."""
-    if has_totp_enabled(user):
-        from lokdown.helpers.totp_helper import get_or_create_totp
-
-        two_fa = get_or_create_totp(user)
+    try:
+        two_fa = UserTimeBasedOneTimePasswords.objects.get(user=user)
+    except UserTimeBasedOneTimePasswords.DoesNotExist:
+        two_fa = None
+    if two_fa and (two_fa.totp_secret or two_fa.pending_totp_secret):
         two_fa.totp_secret = None
-        two_fa.save(update_fields=["totp_secret", "updated_at"])
+        two_fa.pending_totp_secret = None
+        two_fa.save(update_fields=["totp_secret", "pending_totp_secret", "updated_at"])
 
     user.passkey_credentials.all().delete()
 

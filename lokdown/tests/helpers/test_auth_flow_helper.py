@@ -1,12 +1,15 @@
 from unittest.mock import MagicMock, patch
 
+import pyotp
 import pytest
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework import status
 
 from lokdown.helpers.auth_flow_helper import (
+    begin_totp_setup,
     complete_login_with_tokens,
+    complete_totp_setup,
     create_authentication_session,
     disable_user_2fa,
     initiate_password_login,
@@ -139,6 +142,26 @@ class TestCompletePasskeyRegistration:
         assert error is None
         assert len(backup_codes) == settings.BACKUP_CODES_COUNT
         assert all(len(c) == settings.BACKUP_CODE_LENGTH for c in backup_codes)
+
+
+@pytest.mark.django_db
+class TestTotpSetupFlow:
+    def test_complete_totp_setup_uses_pending_secret(self, user):
+        payload = begin_totp_setup(user)
+        token = pyotp.TOTP(payload["secret"]).now()
+        ok, error, backup_codes = complete_totp_setup(user, token)
+        assert ok is True
+        assert error is None
+        assert backup_codes
+        two_fa = get_or_create_totp(user)
+        two_fa.refresh_from_db()
+        assert two_fa.totp_secret == payload["secret"]
+        assert two_fa.pending_totp_secret is None
+
+    def test_complete_totp_setup_rejects_when_already_enabled(self, user_with_totp, valid_totp_token):
+        ok, error, _ = complete_totp_setup(user_with_totp, valid_totp_token)
+        assert ok is False
+        assert error == "TOTP is already enabled"
 
 
 @pytest.mark.django_db

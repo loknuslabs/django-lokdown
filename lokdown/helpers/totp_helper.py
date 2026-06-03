@@ -79,13 +79,23 @@ def verify_totp_login(user: User, token: str) -> bool:
 
 
 # todo double-check usages
+def store_pending_totp_secret(user: User, secret: str) -> None:
+    """Store a pending TOTP secret server-side until setup is verified."""
+    two_fa = get_or_create_totp(user)
+    two_fa.pending_totp_secret = secret
+    two_fa.save(update_fields=["pending_totp_secret", "updated_at"])
+
+
 def setup_totp_complete(user, secret):
     """Complete TOTP setup by saving secret and generating backup codes"""
     try:
-        # create or update new totp
         two_fa = get_or_create_totp(user)
+        if two_fa.totp_secret:
+            logger.warning(f"TOTP already enabled for user {user.username}")
+            return False
         two_fa.totp_secret = secret
-        two_fa.save()
+        two_fa.pending_totp_secret = None
+        two_fa.save(update_fields=["totp_secret", "pending_totp_secret", "updated_at"])
 
         # Generate backup codes
         backup_codes_obj = get_or_create_backup_codes(user)

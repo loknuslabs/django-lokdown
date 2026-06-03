@@ -7,6 +7,7 @@ class UserTimeBasedOneTimePasswords(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="two_factor_auth")
     totp_secret = models.CharField(max_length=32, null=True, blank=True)
+    pending_totp_secret = models.CharField(max_length=32, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_used = models.DateTimeField(null=True, blank=True)
