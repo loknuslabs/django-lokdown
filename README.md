@@ -1,6 +1,33 @@
 # Django Lokdown - Two-Factor Authentication (2FA) System
 
-A comprehensive Django application providing robust Two-Factor Authentication (2FA) with support for TOTP and WebAuthn Passkeys.
+A reusable Django package providing robust Two-Factor Authentication (2FA) with support for TOTP and WebAuthn Passkeys.
+
+## Install in your project
+
+```bash
+pip install django-lokdown
+```
+
+Add to `INSTALLED_APPS`, wire URLs, configure WebAuthn settings, and run migrations. See [lokdown/README.md](lokdown/README.md) for full integration steps.
+
+```python
+INSTALLED_APPS = [
+    # ...
+    "lokdown",
+]
+```
+
+## Local development (this repository)
+
+The published package is only the `lokdown` app. The `example/` directory is a temporary Django project for manual testing:
+
+```bash
+pip install -e ".[dev]"
+python manage.py migrate
+python manage.py runserver
+```
+
+Default admin credentials after migrate: `admin` / `password`. See [example/README.md](example/README.md).
 
 ## Overview
 
@@ -17,14 +44,10 @@ The Django Lokdown 2FA system supports two authentication methods:
 
 ```
 django-lokdown/
-├── configuration/           # Django project settings
-│   ├── settings.py         # Main configuration
-│   ├── urls.py            # URL routing
-│   └── wsgi.py            # WSGI application
-├── lokdown/               # Main 2FA application
+├── lokdown/               # Pip package (published to PyPI)
 │   ├── admin.py           # Django admin interface
 │   ├── admin_auth.py      # Admin authentication logic
-│   ├── admin_url_override.py  # Admin URL customization
+│   ├── urls.py                # API routes + override_admin_urls()
 │   ├── apps.py            # Django app configuration
 │   ├── models.py          # Database models
 │   ├── serializers.py     # DRF serializers
@@ -48,10 +71,12 @@ django-lokdown/
 │   ├── migrations/       # Database migrations
 │   ├── static/          # Static files (CSS, JS)
 │   └── templates/       # HTML templates
-├── tester/              # Test application
-├── manage.py           # Django management script
-├── requirements.txt    # Python dependencies
-└── pyproject.toml     # Project metadata
+├── example/             # Local dev/test Django project (not published)
+│   ├── devsite/         # Example settings and URLs
+│   └── manage.py
+├── manage.py            # Forwards to example/manage.py
+├── pyproject.toml       # Package metadata and dependencies
+└── requirements-dev.txt # Editable install for local work
 ```
 
 ## Recent Admin Authentication Improvements
@@ -147,7 +172,6 @@ if (method === 'passkey') {
 # Store codes in session for immediate display
 request.session['regenerated_backup_codes'] = new_codes
 request.session['regenerated_backup_codes_count'] = updated
-return redirect('/api/admin/backup-codes/display')
 ```
 
 ### Security Enhancements
@@ -160,6 +184,8 @@ return redirect('/api/admin/backup-codes/display')
 6. **Error Handling**: Graceful fallbacks for failed authentication attempts
 
 ## API Endpoints
+
+Detailed authentication and 2FA workflows: **[lokdown/docs/AUTHENTICATION.md](lokdown/docs/AUTHENTICATION.md)**.
 
 ### Authentication Flow
 
@@ -266,7 +292,7 @@ return redirect('/api/admin/backup-codes/display')
 ```
 
 #### 3. Setup WebAuthn Passkey
-**Endpoint:** `POST /api/auth/2fa/setup/passkey`
+**Endpoint:** `POST /api/auth/2fa/passkey/setup`
 **Description:** Generate challenge for WebAuthn passkey registration.
 
 **Response:**
@@ -291,7 +317,7 @@ return redirect('/api/admin/backup-codes/display')
 ```
 
 #### 4. Verify WebAuthn Passkey Setup
-**Endpoint:** `POST /api/auth/2fa/verify/passkey`
+**Endpoint:** `POST /api/auth/2fa/passkey/verify`
 **Description:** Verify WebAuthn passkey registration response.
 
 **Request:**
@@ -404,7 +430,7 @@ curl -X POST http://localhost:8000/api/auth/2fa/verify/totp \
 
 1. **Setup Passkey:**
 ```bash
-curl -X POST http://localhost:8000/api/auth/2fa/setup/passkey \
+curl -X POST http://localhost:8000/api/auth/2fa/passkey/setup \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 ```
@@ -412,7 +438,7 @@ curl -X POST http://localhost:8000/api/auth/2fa/setup/passkey \
 2. **Use the response** to register your passkey with the WebAuthn API in your frontend:
 ```javascript
 // Frontend JavaScript example
-const options = await fetch('/api/auth/2fa/setup/passkey', {
+const options = await fetch('/api/auth/2fa/passkey/setup', {
     method: 'POST',
     headers: {
         'Authorization': 'Bearer YOUR_ACCESS_TOKEN',
@@ -426,7 +452,7 @@ const credential = await navigator.credentials.create({
 });
 
 // Send to server for verification
-await fetch('/api/auth/2fa/verify/passkey', {
+await fetch('/api/auth/2fa/passkey/verify', {
     method: 'POST',
     headers: {
         'Authorization': 'Bearer YOUR_ACCESS_TOKEN',

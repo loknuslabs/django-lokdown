@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to generate API documentation for PennyPusher
+Script to generate API documentation for the django-lokdown example project
 Can be run locally or in CI environments
 """
 
@@ -13,14 +13,14 @@ from pathlib import Path
 def setup_environment():
     """Set up environment variables for documentation generation"""
     env_vars = {
-        'SECRET_KEY': 'test-key-for-docs-generation',
-        'DEBUG': 'True',
-        'LOCAL_DB': 'True',
-        'ALLOW_PUBLIC_REGISTRATION': 'False',
-        'ADMIN_2FA_REQUIRED': 'False',
-        'WEBAUTHN_RP_NAME': 'PennyPusher Local',
-        'WEBAUTHN_ORIGIN': 'http://localhost:8000',
-        'WEBAUTHN_RP_ID': 'localhost',
+        "SECRET_KEY": "test-key-for-docs-generation",
+        "DEBUG": "True",
+        "LOCAL_DB": "True",
+        "ALLOW_PUBLIC_REGISTRATION": "False",
+        "ADMIN_2FA_REQUIRED": "False",
+        "WEBAUTHN_RP_NAME": "Lokdown Local",
+        "WEBAUTHN_ORIGIN": "http://localhost:8000",
+        "WEBAUTHN_RP_ID": "localhost",
     }
 
     for key, value in env_vars.items():
@@ -53,7 +53,8 @@ def generate_documentation():
 
     # Generate OpenAPI schema
     if not run_command(
-        "python manage.py spectacular --file api_schema.json --format openapi-json", "Generating OpenAPI schema"
+        "python manage.py spectacular --file api_schema.json --format openapi-json",
+        "Generating OpenAPI schema",
     ):
         return False
 
@@ -75,7 +76,7 @@ def generate_documentation():
     # Create README for docs directory
     readme_content = """# API Documentation
 
-This directory contains automatically generated API documentation for the PennyPusher API.
+This directory contains automatically generated API documentation for the django-lokdown example API.
 
 ## Files
 

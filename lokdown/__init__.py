@@ -1,1 +1,1 @@
-default_app_config = 'lokdown.apps.SecurityConfig'
+__version__ = "1.0.0"

@@ -22,7 +22,6 @@ from webauthn.helpers.structs import (
     ResidentKeyRequirement,
     UserVerificationRequirement,
 )
-from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes, generate_backup_codes
 from lokdown.helpers.common_helper import get_client_ip
 from lokdown.models import (
     PasskeyCredential,
@@ -47,7 +46,8 @@ def generate_passkey_options(user):
             user_id=str(user.id).encode(),
             user_display_name=user.get_full_name() or user.username,
             authenticator_selection=AuthenticatorSelectionCriteria(
-                resident_key=ResidentKeyRequirement.PREFERRED, user_verification=UserVerificationRequirement.REQUIRED
+                resident_key=ResidentKeyRequirement.PREFERRED,
+                user_verification=UserVerificationRequirement.REQUIRED,
             ),
             attestation=AttestationConveyancePreference.NONE,
         )
@@ -61,19 +61,20 @@ def create_login_session_for_passkey(user, challenge, request=None):
     """Create a login session for passkey setup"""
     try:
         session_id = str(uuid.uuid4())
-        challenge_base64 = base64.b64encode(challenge).decode('utf-8')
+        challenge_base64 = base64.b64encode(challenge).decode("utf-8")
 
         session = LoginSession.objects.create(
             user=user,
             session_id=session_id,
-            expires=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
+            requires_2fa=True,
+            expires_at=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
             challenge=challenge_base64,
         )
 
         if request:
             session.ip_address = get_client_ip(request)
-            session.user_agent = request.META.get('HTTP_USER_AGENT')
-            session.save()
+            session.user_agent = request.META.get("HTTP_USER_AGENT", "")
+            session.save(update_fields=["ip_address", "user_agent"])
 
         return session_id
     except Exception as e:
@@ -114,7 +115,7 @@ def save_passkey_to_database(user, verification):
     """Save passkey credential to database after successful verification"""
     try:
         # Convert public key to base64 for storage
-        public_key_base64 = base64.b64encode(verification.credential_public_key).decode('utf-8')
+        public_key_base64 = base64.b64encode(verification.credential_public_key).decode("utf-8")
 
         PasskeyCredential.objects.create(
             user=user,
@@ -130,29 +131,16 @@ def save_passkey_to_database(user, verification):
         return False
 
 
-def setup_passkey_backup_codes(user, verification):
-    """Complete passkey setup by saving credential and generating backup codes"""
-    try:
-        # Save passkey credential
-        if not save_passkey_to_database(user, verification):
-            return False
-
-        # Generate backup codes
-        backup_codes_obj = get_or_create_backup_codes(user)
-        backup_codes_obj.codes = generate_backup_codes()
-        backup_codes_obj.save()
-
-        return True
-    except Exception as e:
-        logger.error(f"Failed to complete passkey setup for user {user.username}: {str(e)}")
-        return False
-
-
 def verify_passkey(user: User, response_data: dict, session_id: str) -> bool:
     """Verify passkey authentication response"""
     try:
-        # Get session for challenge verification
-        session = LoginSession.objects.get(session_id=session_id)
+        session = LoginSession.objects.get(
+            session_id=session_id,
+            expires_at__gt=timezone.now(),
+        )
+        if not session.challenge:
+            logger.warning("Passkey verification attempted without challenge on session %s", session_id)
+            return False
         credentials = user.passkey_credentials.all()
 
         if not credentials.exists():
@@ -201,7 +189,8 @@ def custom_generate_authentication_options():
     """Generate passkey authentication options"""
     try:
         options = generate_authentication_options(
-            rp_id=settings.WEBAUTHN_RP_ID, user_verification=UserVerificationRequirement.REQUIRED
+            rp_id=settings.WEBAUTHN_RP_ID,
+            user_verification=UserVerificationRequirement.REQUIRED,
         )
         return options
     except Exception as e:
