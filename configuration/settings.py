@@ -16,7 +16,7 @@ import os
 from datetime import timedelta
 
 # Current Project Version
-VERSION = '1.0.0'
+VERSION = "1.0.0"
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,80 +26,82 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', get_random_secret_key())
+SECRET_KEY = os.environ.get("SECRET_KEY", get_random_secret_key())
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["*"]
 
-csrf_trusted_origins_env = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '')
+csrf_trusted_origins_env = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 # Split the environment variable into a list, or use the default if the variable is empty
-CSRF_TRUSTED_ORIGINS = csrf_trusted_origins_env.split(',') if csrf_trusted_origins_env else ''
+CSRF_TRUSTED_ORIGINS = (
+    csrf_trusted_origins_env.split(",") if csrf_trusted_origins_env else ""
+)
 
 # Optional: specify the domain for the CSRF cookie
-CSRF_COOKIE_DOMAIN = os.getenv('DJANGO_CSRF_COOKIE_DOMAIN', '')
+CSRF_COOKIE_DOMAIN = os.getenv("DJANGO_CSRF_COOKIE_DOMAIN", "")
 
 ADMINS = [("admin", "admin@example.com")]
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'lokdown',
-    'tester',
-    'configuration',
-    'corsheaders',
-    'drf_spectacular',
-    'rest_framework',
-    'rest_framework_simplejwt.token_blacklist',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "lokdown",
+    "tester",
+    "configuration",
+    "corsheaders",
+    "drf_spectacular",
+    "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-ROOT_URLCONF = 'configuration.urls'
+ROOT_URLCONF = "configuration.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [os.path.join(BASE_DIR, "templates")],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'configuration.wsgi.application'
+WSGI_APPLICATION = "configuration.wsgi.application"
 
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
 
@@ -108,16 +110,16 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -125,9 +127,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -142,91 +144,97 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
 # Session Configuration
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
+SESSION_SERIALIZER = "django.contrib.sessions.serializers.JSONSerializer"
 
 # WebAuthn Configuration
-WEBAUTHN_RP_ID = os.environ.get('WEBAUTHN_RP_ID', 'localhost')
-WEBAUTHN_RP_NAME = os.environ.get('WEBAUTHN_RP_NAME', 'Lokdown Local')
-WEBAUTHN_ORIGIN = os.environ.get('WEBAUTHN_ORIGIN', 'http://localhost:8000')
+WEBAUTHN_RP_ID = os.environ.get("WEBAUTHN_RP_ID", "localhost")
+WEBAUTHN_RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "Lokdown Local")
+WEBAUTHN_ORIGIN = os.environ.get("WEBAUTHN_ORIGIN", "http://localhost:8000")
 
 # 2FA Configuration
 # Rate limiting for backup codes (attempts per minute)
-BACKUP_CODE_RATE_LIMIT = int(os.environ.get('BACKUP_CODE_RATE_LIMIT', '10'))
+BACKUP_CODE_RATE_LIMIT = int(os.environ.get("BACKUP_CODE_RATE_LIMIT", "10"))
 # Session timeout for 2FA verification (minutes)
-TWOFA_SESSION_TIMEOUT = int(os.environ.get('TWOFA_SESSION_TIMEOUT', '10'))
+TWOFA_SESSION_TIMEOUT = int(os.environ.get("TWOFA_SESSION_TIMEOUT", "10"))
 # Number of backup codes to generate
-BACKUP_CODES_COUNT = int(os.environ.get('BACKUP_CODES_COUNT', '8'))
+BACKUP_CODES_COUNT = int(os.environ.get("BACKUP_CODES_COUNT", "8"))
 # Backup code length (characters)
-BACKUP_CODE_LENGTH = int(os.environ.get('BACKUP_CODE_LENGTH', '10'))
+BACKUP_CODE_LENGTH = int(os.environ.get("BACKUP_CODE_LENGTH", "10"))
 # Require 2FA for admin users
-ADMIN_2FA_REQUIRED = os.environ.get('ADMIN_2FA_REQUIRED', 'True').lower() in ('true', '1', 'yes')
+ADMIN_2FA_REQUIRED = os.environ.get("ADMIN_2FA_REQUIRED", "True").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = "static/"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
-    'DEFAULT_FORMAT_SUFFIXES': ['json'],  # Only allow JSON format
-    'DEFAULT_VERSIONING_CLASS': None,  # Disable versioning if you don't need it
-    'URL_FORMAT_OVERRIDE': None,
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_FORMAT_SUFFIXES": ["json"],  # Only allow JSON format
+    "DEFAULT_VERSIONING_CLASS": None,  # Disable versioning if you don't need it
+    "URL_FORMAT_OVERRIDE": None,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
     ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour',
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/hour",
+        "user": "1000/hour",
     },
-    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication"
+    ],
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=5),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': False,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'AUTH_HEADER_TYPES': ('Bearer',),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=5),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Django Lokdown',
-    'VERSION': VERSION,
-    'SERVE_INCLUDE_SCHEMA': False,
-    'COMPONENT_SPLIT_REQUEST': True,
-    'CAMELIZE_NAMES': False,
-    'SORT_OPERATIONS': False,
-    'SORT_TAGS': True,
-    'DISABLE_ERRORS_AND_WARNINGS': True,
-    'CONTACT': {
-        'name': 'Loknus Labs LLC',
-        'email': 'loknuslabs@gmail.com',
-        'url': 'https://loknuslabs.io',
+    "TITLE": "Django Lokdown",
+    "VERSION": VERSION,
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "CAMELIZE_NAMES": False,
+    "SORT_OPERATIONS": False,
+    "SORT_TAGS": True,
+    "DISABLE_ERRORS_AND_WARNINGS": True,
+    "CONTACT": {
+        "name": "Loknus Labs LLC",
+        "email": "loknuslabs@gmail.com",
+        "url": "https://loknuslabs.io",
     },
-    'LICENSE': {
-        'name': 'GNU General Public License v3.0',
-        'url': 'https://www.gnu.org/licenses/gpl-3.0.html',
+    "LICENSE": {
+        "name": "GNU General Public License v3.0",
+        "url": "https://www.gnu.org/licenses/gpl-3.0.html",
     },
-    'AUTHENTICATION_SCHEMES': [
+    "AUTHENTICATION_SCHEMES": [
         {
-            'name': 'Basic Auth',
-            'type': 'http',
-            'scheme': 'basic',
+            "name": "Basic Auth",
+            "type": "http",
+            "scheme": "basic",
         },
     ],
 }

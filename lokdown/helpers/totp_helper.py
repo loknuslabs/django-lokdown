@@ -9,10 +9,14 @@ import logging
 from io import BytesIO
 from django.conf import settings
 from django.contrib.auth.models import User
-from lokdown.helpers.backup_codes_helper import generate_backup_codes, get_or_create_backup_codes
+from lokdown.helpers.backup_codes_helper import (
+    generate_backup_codes,
+    get_or_create_backup_codes,
+)
 from lokdown.models import UserTimeBasedOneTimePasswords
 
 logger = logging.getLogger(__name__)
+
 
 # todo double check usages
 def get_or_create_totp(user: User) -> UserTimeBasedOneTimePasswords:
@@ -38,7 +42,9 @@ def generate_totp_secret():
 def generate_totp_qr_code(secret, user):
     """Generate QR code for TOTP setup"""
     totp = pyotp.TOTP(secret)
-    provisioning_uri = totp.provisioning_uri(name=user.email or user.username, issuer_name=settings.WEBAUTHN_RP_NAME)
+    provisioning_uri = totp.provisioning_uri(
+        name=user.email or user.username, issuer_name=settings.WEBAUTHN_RP_NAME
+    )
 
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
     qr.add_data(provisioning_uri)
@@ -90,5 +96,7 @@ def setup_totp_complete(user, secret):
 
         return True
     except Exception as e:
-        logger.error(f"Failed to complete TOTP setup for user {user.username}: {str(e)}")
+        logger.error(
+            f"Failed to complete TOTP setup for user {user.username}: {str(e)}"
+        )
         return False

@@ -1,1 +1,1 @@
-default_app_config = 'lokdown.apps.SecurityConfig'
+default_app_config = "lokdown.apps.SecurityConfig"

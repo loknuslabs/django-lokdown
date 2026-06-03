@@ -25,24 +25,24 @@ def is_2fa_enabled(user: User) -> bool:
 
 def get_available_2fa_methods(user: User) -> dict:
     """Get available 2FA methods for user without creating them if they don't exist"""
-    methods = {'totp': False, 'passkey': False, 'backup_codes': False}
+    methods = {"totp": False, "passkey": False, "backup_codes": False}
 
     # Check TOTP without creating
     try:
         two_fa = UserTimeBasedOneTimePasswords.objects.get(user=user)
-        methods['totp'] = bool(two_fa.totp_secret)
+        methods["totp"] = bool(two_fa.totp_secret)
     except UserTimeBasedOneTimePasswords.DoesNotExist:
-        methods['totp'] = False
+        methods["totp"] = False
 
     # Check Passkey
-    methods['passkey'] = user.passkey_credentials.exists()
+    methods["passkey"] = user.passkey_credentials.exists()
 
     # Check Backup Codes without creating
     try:
         backup_codes_obj = BackupCodes.objects.get(user=user)
-        methods['backup_codes'] = len(backup_codes_obj.codes) > 0
+        methods["backup_codes"] = len(backup_codes_obj.codes) > 0
     except BackupCodes.DoesNotExist:
-        methods['backup_codes'] = False
+        methods["backup_codes"] = False
 
     return methods
 
@@ -50,6 +50,7 @@ def get_available_2fa_methods(user: User) -> dict:
 # ============================================================================
 # Serialization Helper Functions
 # ============================================================================
+
 
 # todo can we serialize this object better?
 def serialize_webauthn_options(options, visited=None):
@@ -65,14 +66,14 @@ def serialize_webauthn_options(options, visited=None):
 
     # Field name mapping from snake_case to camelCase
     field_mapping = {
-        'pub_key_cred_params': 'pubKeyCredParams',
-        'authenticator_selection': 'authenticatorSelection',
-        'user_verification': 'userVerification',
-        'resident_key': 'residentKey',
-        'attestation_conveyance': 'attestationConveyance',
-        'exclude_credentials': 'excludeCredentials',
-        'supported_pub_key_algs': 'supportedPubKeyAlgs',
-        'display_name': 'displayName',
+        "pub_key_cred_params": "pubKeyCredParams",
+        "authenticator_selection": "authenticatorSelection",
+        "user_verification": "userVerification",
+        "resident_key": "residentKey",
+        "attestation_conveyance": "attestationConveyance",
+        "exclude_credentials": "excludeCredentials",
+        "supported_pub_key_algs": "supportedPubKeyAlgs",
+        "display_name": "displayName",
     }
 
     result = {}
@@ -81,38 +82,42 @@ def serialize_webauthn_options(options, visited=None):
             # Convert snake_case to camelCase
             camel_key = field_mapping.get(key, key)
 
-            if hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool)):
+            if hasattr(value, "__dict__") and not isinstance(
+                value, (str, int, float, bool)
+            ):
                 # Handle nested objects
                 result[camel_key] = serialize_webauthn_options(value, visited)
             elif isinstance(value, bytes):
                 # Convert bytes to base64
-                result[camel_key] = base64.b64encode(value).decode('utf-8')
-            elif key == 'challenge':
+                result[camel_key] = base64.b64encode(value).decode("utf-8")
+            elif key == "challenge":
                 # Special handling for challenge
-                result[camel_key] = base64.b64encode(value).decode('utf-8')
-            elif key == 'user':
+                result[camel_key] = base64.b64encode(value).decode("utf-8")
+            elif key == "user":
                 # Special handling for user object
                 result[camel_key] = {
-                    'id': base64.b64encode(value.id).decode('utf-8'),
-                    'name': value.name,
-                    'displayName': value.display_name,
+                    "id": base64.b64encode(value.id).decode("utf-8"),
+                    "name": value.name,
+                    "displayName": value.display_name,
                 }
-            elif key == 'rp':
+            elif key == "rp":
                 # Special handling for rp object
-                result[camel_key] = {'name': value.name, 'id': value.id}
-            elif key == 'pub_key_cred_params':
+                result[camel_key] = {"name": value.name, "id": value.id}
+            elif key == "pub_key_cred_params":
                 # Special handling for pub key cred params
-                result[camel_key] = [{'alg': param.alg, 'type': param.type} for param in value]
-            elif key == 'authenticator_selection':
+                result[camel_key] = [
+                    {"alg": param.alg, "type": param.type} for param in value
+                ]
+            elif key == "authenticator_selection":
                 # Special handling for authenticator selection
                 result[camel_key] = {
-                    'residentKey': value.resident_key.value,
-                    'userVerification': value.user_verification.value,
+                    "residentKey": value.resident_key.value,
+                    "userVerification": value.user_verification.value,
                 }
-            elif key == 'attestation':
+            elif key == "attestation":
                 # Special handling for attestation
                 result[camel_key] = value.value
-            elif hasattr(value, 'value'):  # Handle enum-like objects
+            elif hasattr(value, "value"):  # Handle enum-like objects
                 result[camel_key] = value.value
             else:
                 result[camel_key] = value

@@ -22,7 +22,10 @@ from webauthn.helpers.structs import (
     ResidentKeyRequirement,
     UserVerificationRequirement,
 )
-from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes, generate_backup_codes
+from lokdown.helpers.backup_codes_helper import (
+    get_or_create_backup_codes,
+    generate_backup_codes,
+)
 from lokdown.helpers.common_helper import get_client_ip
 from lokdown.models import (
     PasskeyCredential,
@@ -47,13 +50,16 @@ def generate_passkey_options(user):
             user_id=str(user.id).encode(),
             user_display_name=user.get_full_name() or user.username,
             authenticator_selection=AuthenticatorSelectionCriteria(
-                resident_key=ResidentKeyRequirement.PREFERRED, user_verification=UserVerificationRequirement.REQUIRED
+                resident_key=ResidentKeyRequirement.PREFERRED,
+                user_verification=UserVerificationRequirement.REQUIRED,
             ),
             attestation=AttestationConveyancePreference.NONE,
         )
         return options
     except Exception as e:
-        logger.error(f"Failed to generate passkey options for user {user.username}: {str(e)}")
+        logger.error(
+            f"Failed to generate passkey options for user {user.username}: {str(e)}"
+        )
         return None
 
 
@@ -61,7 +67,7 @@ def create_login_session_for_passkey(user, challenge, request=None):
     """Create a login session for passkey setup"""
     try:
         session_id = str(uuid.uuid4())
-        challenge_base64 = base64.b64encode(challenge).decode('utf-8')
+        challenge_base64 = base64.b64encode(challenge).decode("utf-8")
 
         session = LoginSession.objects.create(
             user=user,
@@ -72,12 +78,14 @@ def create_login_session_for_passkey(user, challenge, request=None):
 
         if request:
             session.ip_address = get_client_ip(request)
-            session.user_agent = request.META.get('HTTP_USER_AGENT')
+            session.user_agent = request.META.get("HTTP_USER_AGENT")
             session.save()
 
         return session_id
     except Exception as e:
-        logger.error(f"Failed to create login session for user {user.username}: {str(e)}")
+        logger.error(
+            f"Failed to create login session for user {user.username}: {str(e)}"
+        )
         return None
 
 
@@ -114,7 +122,9 @@ def save_passkey_to_database(user, verification):
     """Save passkey credential to database after successful verification"""
     try:
         # Convert public key to base64 for storage
-        public_key_base64 = base64.b64encode(verification.credential_public_key).decode('utf-8')
+        public_key_base64 = base64.b64encode(verification.credential_public_key).decode(
+            "utf-8"
+        )
 
         PasskeyCredential.objects.create(
             user=user,
@@ -126,7 +136,9 @@ def save_passkey_to_database(user, verification):
         )
         return True
     except Exception as e:
-        logger.error(f"Failed to save passkey to database for user {user.username}: {str(e)}")
+        logger.error(
+            f"Failed to save passkey to database for user {user.username}: {str(e)}"
+        )
         return False
 
 
@@ -144,7 +156,9 @@ def setup_passkey_backup_codes(user, verification):
 
         return True
     except Exception as e:
-        logger.error(f"Failed to complete passkey setup for user {user.username}: {str(e)}")
+        logger.error(
+            f"Failed to complete passkey setup for user {user.username}: {str(e)}"
+        )
         return False
 
 
@@ -185,7 +199,9 @@ def verify_passkey(user: User, response_data: dict, session_id: str) -> bool:
                 logger.info(f"Passkey verification successful for user {user.id}")
                 return True
             except Exception as e:
-                logger.warning(f"Passkey verification failed for credential {credential.id}: {str(e)}")
+                logger.warning(
+                    f"Passkey verification failed for credential {credential.id}: {str(e)}"
+                )
                 # Try next credential
                 continue
 
@@ -201,7 +217,8 @@ def custom_generate_authentication_options():
     """Generate passkey authentication options"""
     try:
         options = generate_authentication_options(
-            rp_id=settings.WEBAUTHN_RP_ID, user_verification=UserVerificationRequirement.REQUIRED
+            rp_id=settings.WEBAUTHN_RP_ID,
+            user_verification=UserVerificationRequirement.REQUIRED,
         )
         return options
     except Exception as e:

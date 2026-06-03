@@ -13,14 +13,14 @@ from pathlib import Path
 def setup_environment():
     """Set up environment variables for documentation generation"""
     env_vars = {
-        'SECRET_KEY': 'test-key-for-docs-generation',
-        'DEBUG': 'True',
-        'LOCAL_DB': 'True',
-        'ALLOW_PUBLIC_REGISTRATION': 'False',
-        'ADMIN_2FA_REQUIRED': 'False',
-        'WEBAUTHN_RP_NAME': 'PennyPusher Local',
-        'WEBAUTHN_ORIGIN': 'http://localhost:8000',
-        'WEBAUTHN_RP_ID': 'localhost',
+        "SECRET_KEY": "test-key-for-docs-generation",
+        "DEBUG": "True",
+        "LOCAL_DB": "True",
+        "ALLOW_PUBLIC_REGISTRATION": "False",
+        "ADMIN_2FA_REQUIRED": "False",
+        "WEBAUTHN_RP_NAME": "PennyPusher Local",
+        "WEBAUTHN_ORIGIN": "http://localhost:8000",
+        "WEBAUTHN_RP_ID": "localhost",
     }
 
     for key, value in env_vars.items():
@@ -53,12 +53,15 @@ def generate_documentation():
 
     # Generate OpenAPI schema
     if not run_command(
-        "python manage.py spectacular --file api_schema.json --format openapi-json", "Generating OpenAPI schema"
+        "python manage.py spectacular --file api_schema.json --format openapi-json",
+        "Generating OpenAPI schema",
     ):
         return False
 
     # Generate HTML documentation
-    if not run_command("python docs/convert_to_html.py", "Generating HTML documentation"):
+    if not run_command(
+        "python docs/convert_to_html.py", "Generating HTML documentation"
+    ):
         return False
 
     # Create docs directory if it doesn't exist
@@ -104,7 +107,9 @@ python generate_docs.py
 
 Generated on: {date}
 """.format(
-        date=subprocess.run("date", shell=True, capture_output=True, text=True).stdout.strip()
+        date=subprocess.run(
+            "date", shell=True, capture_output=True, text=True
+        ).stdout.strip()
     )
 
     with open("docs/README.md", "w") as f:

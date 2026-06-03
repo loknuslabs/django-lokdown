@@ -5,7 +5,9 @@ from django.contrib.auth.models import User
 class UserTimeBasedOneTimePasswords(models.Model):
     """Model to store TOTP settings for users"""
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='two_factor_auth')
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="two_factor_auth"
+    )
     totp_secret = models.CharField(max_length=32, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -22,7 +24,9 @@ class UserTimeBasedOneTimePasswords(models.Model):
 class PasskeyCredential(models.Model):
     """Model to store WebAuthn passkey credentials"""
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='passkey_credentials')
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="passkey_credentials"
+    )
     credential_id = models.CharField(max_length=255, unique=True)
     public_key = models.TextField()
     sign_count = models.BigIntegerField(default=0)
@@ -43,7 +47,9 @@ class PasskeyCredential(models.Model):
 class BackupCodes(models.Model):
     """Model to store backup codes for 2FA users (TOTP or Passkey)"""
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='backup_codes')
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="backup_codes"
+    )
     codes = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -59,7 +65,9 @@ class BackupCodes(models.Model):
 class LoginSession(models.Model):
     """Model to track login sessions for 2FA flow"""
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='login_sessions')
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="login_sessions"
+    )
     session_id = models.CharField(max_length=64, unique=True)
     is_authenticated = models.BooleanField(default=False)
     requires_2fa = models.BooleanField(default=False)
@@ -82,10 +90,14 @@ class LoginSession(models.Model):
 class FailedBackupCodeAttempt(models.Model):
     """Model to track failed backup code attempts for lokdown monitoring"""
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='failed_backup_attempts')
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="failed_backup_attempts"
+    )
     ip_address = models.GenericIPAddressField()
     user_agent = models.TextField(blank=True)
-    attempted_code = models.CharField(max_length=10, blank=True)  # Store partial for monitoring
+    attempted_code = models.CharField(
+        max_length=10, blank=True
+    )  # Store partial for monitoring
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -94,4 +106,4 @@ class FailedBackupCodeAttempt(models.Model):
     class Meta:
         verbose_name = "Failed Backup Code Attempt"
         verbose_name_plural = "Failed Backup Code Attempts"
-        ordering = ['-created_at']
+        ordering = ["-created_at"]

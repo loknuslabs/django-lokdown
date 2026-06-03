@@ -27,25 +27,31 @@ from lokdown.serializers import BackupCodeSerializer
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
-@ratelimit(key='ip', rate=f'{settings.BACKUP_CODE_RATE_LIMIT}/m', method=['POST'], block=True)
+@ratelimit(
+    key="ip", rate=f"{settings.BACKUP_CODE_RATE_LIMIT}/m", method=["POST"], block=True
+)
 def verify_backup_code_endpoint(request):
     """Dedicated endpoint for backup code verification with strict rate limiting"""
     serializer = BackupCodeSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    session_id = serializer.validated_data.get('session_id')
-    backup_code = serializer.validated_data.get('backup_code')
+    session_id = serializer.validated_data.get("session_id")
+    backup_code = serializer.validated_data.get("backup_code")
 
     # Get session
     try:
-        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
+        session = LoginSession.objects.get(
+            session_id=session_id, expires_at__gt=timezone.now()
+        )
     except LoginSession.DoesNotExist:
-        return Response({'error': 'Invalid or expired session'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST
+        )
 
     # Get client IP and user agent
     ip_address = get_client_ip(request)
-    user_agent = request.META.get('HTTP_USER_AGENT', '')
+    user_agent = request.META.get("HTTP_USER_AGENT", "")
 
     # Verify backup code
     if verify_backup_code(session.user, backup_code, ip_address, user_agent):
@@ -59,11 +65,13 @@ def verify_backup_code_endpoint(request):
 
         return Response(
             {
-                'access_token': str(refresh.access_token),
-                'refresh_token': str(refresh),
-                'requires_2fa': False,
-                'message': 'Backup code verified successfully',
+                "access_token": str(refresh.access_token),
+                "refresh_token": str(refresh),
+                "requires_2fa": False,
+                "message": "Backup code verified successfully",
             }
         )
     else:
-        return Response({'error': 'Invalid backup code'}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(
+            {"error": "Invalid backup code"}, status=status.HTTP_401_UNAUTHORIZED
+        )

@@ -32,7 +32,8 @@ from .views import (
     has_passkey_enabled,
 )
 from lokdown.helpers.twofa_helper import (
-    get_available_2fa_methods, serialize_webauthn_options,
+    get_available_2fa_methods,
+    serialize_webauthn_options,
 )
 from .helpers.common_helper import get_client_ip
 from django.contrib.admin import site as admin_site
@@ -42,20 +43,20 @@ from datetime import timedelta
 def admin_login_view(request):
     """Custom admin login view with 2FA support"""
 
-    if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
 
         user = authenticate(request, username=username, password=password)
 
         # user authentication failed or user is not staff
         if user is None or not user.is_staff:
-            messages.error(request, 'Invalid credentials or insufficient permissions.')
+            messages.error(request, "Invalid credentials or insufficient permissions.")
 
         elif not settings.ADMIN_LOGIN_ENABLED:
             # 2FA not required for admins - proceed with normal login
             login(request, user)
-            return redirect('admin:index')
+            return redirect("admin:index")
 
         else:
             available_methods = get_available_2fa_methods(user)
@@ -65,19 +66,19 @@ def admin_login_view(request):
             if not has_2fa_enabled:
                 # First time login - create session and redirect to 2FA setup
                 if session_id:
-                    request.session['admin_2fa_session_id'] = session_id
-                    return redirect('admin_2fa_setup')
+                    request.session["admin_2fa_session_id"] = session_id
+                    return redirect("admin_2fa_setup")
                 else:
-                    messages.error(request, 'Failed to create authentication session.')
-                    return redirect('admin_login')
+                    messages.error(request, "Failed to create authentication session.")
+                    return redirect("admin_login")
             else:
                 # 2FA is enabled - create session and redirect to verification
                 if session_id:
-                    request.session['admin_2fa_session_id'] = session_id
-                    return redirect('admin_2fa_verify')
+                    request.session["admin_2fa_session_id"] = session_id
+                    return redirect("admin_2fa_verify")
                 else:
-                    messages.error(request, 'Failed to create authentication session.')
-                    return redirect('admin_login')
+                    messages.error(request, "Failed to create authentication session.")
+                    return redirect("admin_login")
 
     return admin_site.login(request)
 
@@ -85,10 +86,10 @@ def admin_login_view(request):
 def admin_2fa_setup_view(request):
     """Admin 2FA setup view"""
     # Get user from session since they're not fully authenticated yet
-    session_id = request.session.get('admin_2fa_session_id')
+    session_id = request.session.get("admin_2fa_session_id")
     session, error = validate_session_data(session_id)
     if not session:
-        return redirect('admin_login')
+        return redirect("admin_login")
 
     user = session.user
 
@@ -97,62 +98,62 @@ def admin_2fa_setup_view(request):
         # Clear passkey credentials if no TOTP is set up
         user.passkey_credentials.all().delete()
 
-    if request.method == 'POST':
-        setup_type = request.POST.get('setup_type')
+    if request.method == "POST":
+        setup_type = request.POST.get("setup_type")
 
-        if setup_type == 'totp':
+        if setup_type == "totp":
             # Generate TOTP secret and QR code
             totp_secret = generate_totp_secret()
             qr_code_b64 = generate_totp_qr_code(totp_secret, user)
 
             # Store the secret in session for verification (not in database yet)
-            request.session['pending_totp_secret'] = totp_secret
+            request.session["pending_totp_secret"] = totp_secret
 
             return render(
                 request,
-                '2fa_setup_totp.html',
-                {'qr_code': qr_code_b64, 'secret': totp_secret},
+                "2fa_setup_totp.html",
+                {"qr_code": qr_code_b64, "secret": totp_secret},
             )
 
-        elif setup_type == 'passkey':
+        elif setup_type == "passkey":
             # Redirect to passkey setup
-            return redirect('admin_2fa_setup_passkey')
+            return redirect("admin_2fa_setup_passkey")
 
-    return render(request, '2fa_setup.html')
+    return render(request, "2fa_setup.html")
 
 
 def admin_2fa_verify_view(request):
     """Admin 2FA verification view"""
-    session_id = request.session.get('admin_2fa_session_id')
+    session_id = request.session.get("admin_2fa_session_id")
     session, error = validate_session_data(session_id)
     if not session:
-        messages.error(request, 'Invalid or expired session.')
-        return redirect('admin_login')
+        messages.error(request, "Invalid or expired session.")
+        return redirect("admin_login")
 
     user = session.user
 
     # Check if user has 2FA enabled
     if not is_2fa_enabled(user):
         # 2FA is not enabled, redirect to set up
-        return redirect('admin_2fa_setup')
+        return redirect("admin_2fa_setup")
 
     # Get available verification methods
     available_methods = []
     if has_totp_enabled(user):
-        available_methods.append('totp')
+        available_methods.append("totp")
     if has_passkey_enabled(user):
-        available_methods.append('passkey')
+        available_methods.append("passkey")
     # Backup codes are always available if 2FA is enabled
-    available_methods.append('backup')
+    available_methods.append("backup")
 
     # If no methods are available but 2FA is enabled, redirect to set up
     if len(available_methods) == 0:
-        return redirect('admin_2fa_setup')
+        return redirect("admin_2fa_setup")
 
-    if request.method == 'POST':
-        totp_token = request.POST.get('totp_token')
-        passkey_response = request.POST.get('passkey_response')
-        backup_code = request.POST.get('backup_code')
+    if request.method == "POST":
+        totp_token = request.POST.get("totp_token")
+        passkey_response = request.POST.get("passkey_response")
+        backup_code = request.POST.get("backup_code")
 
         # Verify 2FA method
         if totp_token and has_totp_enabled(user):
@@ -160,48 +161,58 @@ def admin_2fa_verify_view(request):
                 session.totp_verified = True
                 session.save()
                 login(request, user)
-                del request.session['admin_2fa_session_id']
-                return redirect('admin:index')
+                del request.session["admin_2fa_session_id"]
+                return redirect("admin:index")
 
         elif passkey_response and has_passkey_enabled(user):
             if verify_passkey(user, json.loads(passkey_response), session_id):
                 session.passkey_verified = True
                 session.save()
                 login(request, user)
-                del request.session['admin_2fa_session_id']
-                return redirect('admin:index')
+                del request.session["admin_2fa_session_id"]
+                return redirect("admin:index")
 
         elif backup_code:
-            if verify_backup_code(user, backup_code, get_client_ip(request), request.META.get('HTTP_USER_AGENT', '')):
+            if verify_backup_code(
+                user,
+                backup_code,
+                get_client_ip(request),
+                request.META.get("HTTP_USER_AGENT", ""),
+            ):
                 session.totp_verified = True
                 session.save()
                 login(request, user)
-                del request.session['admin_2fa_session_id']
-                return redirect('admin:index')
+                del request.session["admin_2fa_session_id"]
+                return redirect("admin:index")
 
-        messages.error(request, 'Invalid 2FA token.')
+        messages.error(request, "Invalid 2FA token.")
 
-    return render(request, '2fa_verify.html', {'available_methods': available_methods, 'user': user})
+    return render(
+        request,
+        "2fa_verify.html",
+        {"available_methods": available_methods, "user": user},
+    )
 
 
 # --------------------------------------------- TOTP ---------------------------------------------
+
 
 def admin_current_user_totp_setup(request):
     """TOTP setup view for current admin user"""
     if not request.user.is_authenticated or not request.user.is_staff:
         # Use appropriate login URL based on 2FA setting
-        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
-            return redirect('admin_login')
+        if getattr(settings, "ADMIN_2FA_REQUIRED", False):
+            return redirect("admin_login")
         else:
-            return redirect('admin:login')
+            return redirect("admin:login")
 
     user = request.user
     get_or_create_totp(user)
 
-    if request.method == 'POST':
+    if request.method == "POST":
         # Handle TOTP verification
-        totp_code = request.POST.get('totp_code')
-        secret = request.session.get('pending_current_user_totp_secret')
+        totp_code = request.POST.get("totp_code")
+        secret = request.session.get("pending_current_user_totp_secret")
 
         if totp_code and secret:
             # Verify the TOTP token
@@ -209,44 +220,50 @@ def admin_current_user_totp_setup(request):
                 # Complete TOTP setup
                 if setup_totp_complete(user, secret):
                     # Clear the pending secret from session
-                    if 'pending_current_user_totp_secret' in request.session:
-                        del request.session['pending_current_user_totp_secret']
+                    if "pending_current_user_totp_secret" in request.session:
+                        del request.session["pending_current_user_totp_secret"]
 
-                    messages.success(request, 'TOTP setup completed successfully!')
-                    return redirect('admin_current_user_backup_codes')
+                    messages.success(request, "TOTP setup completed successfully!")
+                    return redirect("admin_current_user_backup_codes")
                 else:
-                    messages.error(request, 'Failed to complete TOTP setup.')
+                    messages.error(request, "Failed to complete TOTP setup.")
             else:
-                messages.error(request, 'Invalid TOTP code. Please try again.')
+                messages.error(request, "Invalid TOTP code. Please try again.")
         else:
-            messages.error(request, 'Missing required fields or no pending TOTP setup.')
+            messages.error(request, "Missing required fields or no pending TOTP setup.")
 
     # Generate TOTP secret and QR code
     totp_secret = generate_totp_secret()
     qr_code_b64 = generate_totp_qr_code(totp_secret, user)
 
     # Store the secret in session for verification (not in database yet)
-    request.session['pending_current_user_totp_secret'] = totp_secret
+    request.session["pending_current_user_totp_secret"] = totp_secret
 
     return render(
         request,
-        '2fa_setup_totp.html',
-        {'qr_code': qr_code_b64, 'secret': totp_secret, 'user': user, 'is_current_user': True},
+        "2fa_setup_totp.html",
+        {
+            "qr_code": qr_code_b64,
+            "secret": totp_secret,
+            "user": user,
+            "is_current_user": True,
+        },
     )
+
 
 def admin_2fa_verify_totp_setup(request):
     """Admin TOTP setup verification"""
     # Get user from session
-    session_id = request.session.get('admin_2fa_session_id')
+    session_id = request.session.get("admin_2fa_session_id")
     session, error = validate_session_data(session_id)
     if not session:
-        return redirect('admin_login')
+        return redirect("admin_login")
 
     user = session.user
 
-    if request.method == 'POST':
-        totp_token = request.POST.get('totp_token')
-        secret = request.session.get('pending_totp_secret')
+    if request.method == "POST":
+        totp_token = request.POST.get("totp_token")
+        secret = request.session.get("pending_totp_secret")
 
         if secret and totp_token:
             # Verify the TOTP token
@@ -254,42 +271,44 @@ def admin_2fa_verify_totp_setup(request):
                 # Complete TOTP setup
                 if setup_totp_complete(user, secret):
                     # Clear the pending secret from session
-                    if 'pending_totp_secret' in request.session:
-                        del request.session['pending_totp_secret']
+                    if "pending_totp_secret" in request.session:
+                        del request.session["pending_totp_secret"]
 
-                    messages.success(request, 'TOTP setup completed successfully!')
-                    return redirect('admin_2fa_backup_codes')
+                    messages.success(request, "TOTP setup completed successfully!")
+                    return redirect("admin_2fa_backup_codes")
                 else:
-                    messages.error(request, 'Failed to complete TOTP setup.')
+                    messages.error(request, "Failed to complete TOTP setup.")
             else:
-                messages.error(request, 'Invalid TOTP token. Please try again.')
+                messages.error(request, "Invalid TOTP token. Please try again.")
         else:
-            messages.error(request, 'Missing required fields or no pending TOTP setup.')
+            messages.error(request, "Missing required fields or no pending TOTP setup.")
 
-    return redirect('admin_2fa_setup')
+    return redirect("admin_2fa_setup")
 
 
 # --------------------------------------------- Passkey ---------------------------------------------
 def admin_2fa_setup_passkey_view(request):
     """Admin passkey setup view"""
     # Get user from session since they're not fully authenticated yet
-    session_id = request.session.get('admin_2fa_session_id')
+    session_id = request.session.get("admin_2fa_session_id")
 
     if not session_id:
-        return redirect('admin_login')
+        return redirect("admin_login")
 
     try:
-        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
+        session = LoginSession.objects.get(
+            session_id=session_id, expires_at__gt=timezone.now()
+        )
         user = session.user
     except LoginSession.DoesNotExist:
-        return redirect('admin_login')
+        return redirect("admin_login")
     except Exception:
         # Log the error for debugging
-        return redirect('admin_login')
+        return redirect("admin_login")
 
-    if request.method == 'POST':
+    if request.method == "POST":
         # Handle passkey setup
-        passkey_response = request.POST.get('passkey_response')
+        passkey_response = request.POST.get("passkey_response")
 
         if passkey_response:
             try:
@@ -319,7 +338,9 @@ def admin_2fa_setup_passkey_view(request):
                 from .models import PasskeyCredential
 
                 # Convert public key to base64 for storage
-                public_key_base64 = base64.b64encode(verification.credential_public_key).decode('utf-8')
+                public_key_base64 = base64.b64encode(
+                    verification.credential_public_key
+                ).decode("utf-8")
 
                 # Create the passkey credential
                 PasskeyCredential.objects.create(
@@ -336,19 +357,19 @@ def admin_2fa_setup_passkey_view(request):
                 backup_codes_obj.codes = generate_backup_codes()
                 backup_codes_obj.save()
 
-                messages.success(request, 'Passkey setup completed successfully!')
+                messages.success(request, "Passkey setup completed successfully!")
                 # Redirect to backup codes page instead of admin index
-                return redirect('admin_2fa_backup_codes')
+                return redirect("admin_2fa_backup_codes")
 
             except json.JSONDecodeError:
-                messages.error(request, 'Invalid passkey response format.')
+                messages.error(request, "Invalid passkey response format.")
             except Exception as e:
-                messages.error(request, f'Passkey setup failed: {str(e)}')
+                messages.error(request, f"Passkey setup failed: {str(e)}")
                 # Log the error for debugging
                 import logging
 
                 logger = logging.getLogger(__name__)
-                logger.error(f'Passkey setup failed for user {user.username}: {str(e)}')
+                logger.error(f"Passkey setup failed for user {user.username}: {str(e)}")
 
     # Generate passkey options using modern webauthn API
     from webauthn.helpers.structs import (
@@ -366,7 +387,8 @@ def admin_2fa_setup_passkey_view(request):
         user_id=str(user.id).encode(),
         user_display_name=user.get_full_name() or user.username,
         authenticator_selection=AuthenticatorSelectionCriteria(
-            resident_key=ResidentKeyRequirement.PREFERRED, user_verification=UserVerificationRequirement.REQUIRED
+            resident_key=ResidentKeyRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
         ),
         attestation=AttestationConveyancePreference.NONE,
     )
@@ -375,19 +397,19 @@ def admin_2fa_setup_passkey_view(request):
     new_session_id = str(uuid.uuid4())
     import base64
 
-    challenge_base64 = base64.b64encode(options.challenge).decode('utf-8')
+    challenge_base64 = base64.b64encode(options.challenge).decode("utf-8")
     LoginSession.objects.create(
         user=user,
         session_id=new_session_id,
         expires_at=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
         challenge=challenge_base64,  # Store as base64 string
         ip_address=get_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        user_agent=request.META.get("HTTP_USER_AGENT", ""),
     )
 
     # Update the Django session with the new session ID
     try:
-        request.session['admin_2fa_session_id'] = new_session_id
+        request.session["admin_2fa_session_id"] = new_session_id
         request.session.modified = True
         request.session.save()
     except Exception as e:
@@ -400,8 +422,11 @@ def admin_2fa_setup_passkey_view(request):
 
     return render(
         request,
-        '2fa_setup_passkey.html',
-        {'options': json.dumps(serialize_webauthn_options_view(options)), 'session_id': new_session_id},
+        "2fa_setup_passkey.html",
+        {
+            "options": json.dumps(serialize_webauthn_options_view(options)),
+            "session_id": new_session_id,
+        },
     )
 
 
@@ -409,16 +434,16 @@ def admin_current_user_passkey_setup(request):
     """Passkey setup view for current admin user"""
     if not request.user.is_authenticated or not request.user.is_staff:
         # Use appropriate login URL based on 2FA setting
-        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
-            return redirect('admin_login')
+        if getattr(settings, "ADMIN_2FA_REQUIRED", False):
+            return redirect("admin_login")
         else:
-            return redirect('admin:login')
+            return redirect("admin:login")
 
     user = request.user
 
-    if request.method == 'POST':
+    if request.method == "POST":
         # Handle passkey setup
-        passkey_response = request.POST.get('passkey_response')
+        passkey_response = request.POST.get("passkey_response")
 
         if passkey_response:
             try:
@@ -429,10 +454,10 @@ def admin_current_user_passkey_setup(request):
                 passkey_response_dict = json.loads(passkey_response)
 
                 # Convert stored base64 challenge back to bytes
-                challenge_base64 = request.session.get('current_user_passkey_challenge')
+                challenge_base64 = request.session.get("current_user_passkey_challenge")
                 if not challenge_base64:
-                    messages.error(request, 'Challenge not found. Please try again.')
-                    return redirect('admin_current_user_passkey_setup')
+                    messages.error(request, "Challenge not found. Please try again.")
+                    return redirect("admin_current_user_passkey_setup")
 
                 expected_challenge = base64.b64decode(challenge_base64)
 
@@ -446,7 +471,9 @@ def admin_current_user_passkey_setup(request):
                 # Save the credential
                 from .models import PasskeyCredential
 
-                public_key_base64 = base64.b64encode(verification.credential_public_key).decode('utf-8')
+                public_key_base64 = base64.b64encode(
+                    verification.credential_public_key
+                ).decode("utf-8")
 
                 PasskeyCredential.objects.create(
                     user=user,
@@ -462,18 +489,20 @@ def admin_current_user_passkey_setup(request):
                 backup_codes_obj.codes = generate_backup_codes()
                 backup_codes_obj.save()
 
-                messages.success(request, 'Passkey setup completed successfully!')
-                return redirect('admin_current_user_backup_codes')
+                messages.success(request, "Passkey setup completed successfully!")
+                return redirect("admin_current_user_backup_codes")
 
             except json.JSONDecodeError:
-                messages.error(request, 'Invalid passkey response format.')
+                messages.error(request, "Invalid passkey response format.")
             except Exception as e:
-                messages.error(request, f'Passkey setup failed: {str(e)}')
+                messages.error(request, f"Passkey setup failed: {str(e)}")
                 # Log the error for debugging
                 import logging
 
                 logger = logging.getLogger(__name__)
-                logger.error(f'Current user passkey setup failed for user {user.username}: {str(e)}')
+                logger.error(
+                    f"Current user passkey setup failed for user {user.username}: {str(e)}"
+                )
 
     # Generate passkey options
     from webauthn.helpers.structs import (
@@ -484,7 +513,7 @@ def admin_current_user_passkey_setup(request):
     )
     from webauthn import generate_registration_options
 
-    user_id_bytes = str(user.id).encode('utf-8')
+    user_id_bytes = str(user.id).encode("utf-8")
 
     options = generate_registration_options(
         rp_id=settings.WEBAUTHN_RP_ID,
@@ -493,14 +522,15 @@ def admin_current_user_passkey_setup(request):
         user_id=user_id_bytes,
         user_display_name=user.get_full_name() or user.username,
         authenticator_selection=AuthenticatorSelectionCriteria(
-            resident_key=ResidentKeyRequirement.PREFERRED, user_verification=UserVerificationRequirement.REQUIRED
+            resident_key=ResidentKeyRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
         ),
         attestation=AttestationConveyancePreference.NONE,
     )
 
     # Store challenge in session
-    challenge_base64 = base64.b64encode(options.challenge).decode('utf-8')
-    request.session['current_user_passkey_challenge'] = challenge_base64
+    challenge_base64 = base64.b64encode(options.challenge).decode("utf-8")
+    request.session["current_user_passkey_challenge"] = challenge_base64
 
     # Serialize options for JavaScript
     def serialize_webauthn_options(options, visited=None):
@@ -513,28 +543,33 @@ def admin_current_user_passkey_setup(request):
                 continue
             visited.add(key)
 
-            camel_key = ''.join(word.capitalize() if i > 0 else word for i, word in enumerate(key.split('_')))
+            camel_key = "".join(
+                word.capitalize() if i > 0 else word
+                for i, word in enumerate(key.split("_"))
+            )
 
-            if key == 'challenge':
-                result[camel_key] = base64.b64encode(value).decode('utf-8')
-            elif key == 'user':
+            if key == "challenge":
+                result[camel_key] = base64.b64encode(value).decode("utf-8")
+            elif key == "user":
                 result[camel_key] = {
-                    'id': base64.b64encode(value.id).decode('utf-8'),
-                    'name': value.name,
-                    'displayName': value.display_name,
+                    "id": base64.b64encode(value.id).decode("utf-8"),
+                    "name": value.name,
+                    "displayName": value.display_name,
                 }
-            elif key == 'rp':
-                result[camel_key] = {'name': value.name, 'id': value.id}
-            elif key == 'pub_key_cred_params':
-                result[camel_key] = [{'alg': param.alg, 'type': param.type} for param in value]
-            elif key == 'authenticator_selection':
+            elif key == "rp":
+                result[camel_key] = {"name": value.name, "id": value.id}
+            elif key == "pub_key_cred_params":
+                result[camel_key] = [
+                    {"alg": param.alg, "type": param.type} for param in value
+                ]
+            elif key == "authenticator_selection":
                 result[camel_key] = {
-                    'residentKey': value.resident_key.value,
-                    'userVerification': value.user_verification.value,
+                    "residentKey": value.resident_key.value,
+                    "userVerification": value.user_verification.value,
                 }
-            elif key == 'attestation':
+            elif key == "attestation":
                 result[camel_key] = value.value
-            elif hasattr(value, 'value'):  # Handle enum-like objects
+            elif hasattr(value, "value"):  # Handle enum-like objects
                 result[camel_key] = value.value
             else:
                 result[camel_key] = value
@@ -545,8 +580,12 @@ def admin_current_user_passkey_setup(request):
 
     return render(
         request,
-        '2fa_setup_passkey.html',
-        {'options': json.dumps(serialized_options), 'user': user, 'is_current_user': True},
+        "2fa_setup_passkey.html",
+        {
+            "options": json.dumps(serialized_options),
+            "user": user,
+            "is_current_user": True,
+        },
     )
 
 
@@ -555,43 +594,49 @@ def admin_current_user_backup_codes(request):
     """Backup codes view for current admin user"""
     if not request.user.is_authenticated or not request.user.is_staff:
         # Use appropriate login URL based on 2FA setting
-        if getattr(settings, 'ADMIN_2FA_REQUIRED', False):
-            return redirect('admin_login')
+        if getattr(settings, "ADMIN_2FA_REQUIRED", False):
+            return redirect("admin_login")
         else:
-            return redirect('admin:login')
+            return redirect("admin:login")
 
     user = request.user
     get_or_create_totp(user)
 
-    if request.method == 'POST':
+    if request.method == "POST":
         # User has acknowledged the backup codes - redirect to PasskeyCredential admin
-        messages.success(request, '2FA setup completed successfully!')
-        return redirect('admin:lokdown_passkeycredential_changelist')
+        messages.success(request, "2FA setup completed successfully!")
+        return redirect("admin:lokdown_passkeycredential_changelist")
 
     if not has_backup_codes(user):
-        messages.error(request, 'No backup codes found. Please complete 2FA setup first.')
-        return redirect('admin:lokdown_usertwofactorauth_changelist')
+        messages.error(
+            request, "No backup codes found. Please complete 2FA setup first."
+        )
+        return redirect("admin:lokdown_usertwofactorauth_changelist")
 
     backup_codes_obj = get_or_create_backup_codes(user)
     backup_codes = backup_codes_obj.codes
 
     return render(
-        request, '2fa_backup_codes.html', {'backup_codes': backup_codes, 'user': user, 'is_current_user': True}
+        request,
+        "2fa_backup_codes.html",
+        {"backup_codes": backup_codes, "user": user, "is_current_user": True},
     )
 
 
 def admin_2fa_backup_codes_view(request):
     """Admin backup codes display view"""
     # Get user from session since they're not fully authenticated yet
-    session_id = request.session.get('admin_2fa_session_id')
+    session_id = request.session.get("admin_2fa_session_id")
     if not session_id:
-        return redirect('admin_login')
+        return redirect("admin_login")
 
     try:
-        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
+        session = LoginSession.objects.get(
+            session_id=session_id, expires_at__gt=timezone.now()
+        )
         user = session.user
     except LoginSession.DoesNotExist:
-        return redirect('admin_login')
+        return redirect("admin_login")
 
     # Get the user's backup codes
     try:
@@ -600,10 +645,12 @@ def admin_2fa_backup_codes_view(request):
         backup_codes_obj = get_or_create_backup_codes(user)
         backup_codes = backup_codes_obj.codes
     except Exception:
-        return redirect('admin_2fa_setup')
+        return redirect("admin_2fa_setup")
 
-    if request.method == 'POST':
+    if request.method == "POST":
         # User has acknowledged the backup codes
-        return redirect('admin:index')
+        return redirect("admin:index")
 
-    return render(request, '2fa_backup_codes.html', {'backup_codes': backup_codes, 'user': user})
+    return render(
+        request, "2fa_backup_codes.html", {"backup_codes": backup_codes, "user": user}
+    )

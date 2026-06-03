@@ -32,10 +32,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         # First, authenticate the user
-        user = authenticate(username=attrs.get('username'), password=attrs.get('password'))
+        user = authenticate(
+            username=attrs.get("username"), password=attrs.get("password")
+        )
 
         if not user:
-            raise serializers.ValidationError('Invalid credentials')
+            raise serializers.ValidationError("Invalid credentials")
 
         # Check if user has 2FA enabled
         if is_2fa_enabled(user):
@@ -45,20 +47,21 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 user=user,
                 session_id=session_id,
                 requires_2fa=True,
-                expires_at=timezone.now() + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
-                ip_address=get_client_ip(self.context['request']),
-                user_agent=self.context['request'].META.get('HTTP_USER_AGENT', ''),
+                expires_at=timezone.now()
+                + timedelta(minutes=settings.TWOFA_SESSION_TIMEOUT),
+                ip_address=get_client_ip(self.context["request"]),
+                user_agent=self.context["request"].META.get("HTTP_USER_AGENT", ""),
             )
 
             # Return session info instead of tokens
             raise serializers.ValidationError(
                 {
-                    'requires_2fa': True,
-                    'session_id': session_id,
-                    'totp_enabled': has_totp_enabled(user),
-                    'passkey_enabled': has_passkey_enabled(user),
-                    'backup_codes_available': has_backup_codes(user),
-                    'message': '2FA verification required',
+                    "requires_2fa": True,
+                    "session_id": session_id,
+                    "totp_enabled": has_totp_enabled(user),
+                    "passkey_enabled": has_passkey_enabled(user),
+                    "backup_codes_available": has_backup_codes(user),
+                    "message": "2FA verification required",
                 }
             )
 
@@ -88,7 +91,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             serializer.is_valid(raise_exception=True)
         except serializers.ValidationError as e:
             # Check if this is a 2FA requirement response
-            if isinstance(e.detail, dict) and e.detail.get('requires_2fa'):
+            if isinstance(e.detail, dict) and e.detail.get("requires_2fa"):
                 return Response(e.detail, status=status.HTTP_401_UNAUTHORIZED)
             return Response(e.detail, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -103,13 +106,13 @@ class TokenVerify2FAView(TokenObtainPairView):
         description="Complete token generation after successful 2FA verification",
         tags=["Authentication"],
         request={
-            'application/json': {
-                'type': 'object',
-                'properties': {
-                    'session_id': {'type': 'string'},
-                    'totp_token': {'type': 'string'},
-                    'passkey_response': {'type': 'object'},
-                    'backup_code': {'type': 'string'},
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
+                    "totp_token": {"type": "string"},
+                    "passkey_response": {"type": "object"},
+                    "backup_code": {"type": "string"},
                 },
             }
         },
@@ -120,15 +123,19 @@ class TokenVerify2FAView(TokenObtainPairView):
         },
     )
     def post(self, request, *args, **kwargs):
-        session_id = request.data.get('session_id')
-        totp_token = request.data.get('totp_token')
-        passkey_response = request.data.get('passkey_response')
-        backup_code = request.data.get('backup_code')
+        session_id = request.data.get("session_id")
+        totp_token = request.data.get("totp_token")
+        passkey_response = request.data.get("passkey_response")
+        backup_code = request.data.get("backup_code")
 
         if not session_id:
-            return Response({'error': 'session_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "session_id is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
-        session = get_session(session_id, totp_token, passkey_response, backup_code, request)
+        session = get_session(
+            session_id, totp_token, passkey_response, backup_code, request
+        )
         if type(session) is Response:
             return session
 
@@ -137,4 +144,10 @@ class TokenVerify2FAView(TokenObtainPairView):
         session.is_authenticated = True
         session.save()
 
-        return Response({'access': str(refresh.access_token), 'refresh': str(refresh), 'requires_2fa': False})
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "requires_2fa": False,
+            }
+        )
