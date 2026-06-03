@@ -16,7 +16,7 @@ from lokdown.helpers.auth_flow_helper import (
     validate_session_data,
     verify_second_factor,
 )
-from lokdown.helpers.totp_helper import get_or_create_totp
+from lokdown.helpers.totp_helper import get_or_create_totp, read_stored_secret
 from lokdown.models import LoginSession
 from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes
 
@@ -155,7 +155,7 @@ class TestTotpSetupFlow:
         assert backup_codes
         two_fa = get_or_create_totp(user)
         two_fa.refresh_from_db()
-        assert two_fa.totp_secret == payload["secret"]
+        assert read_stored_secret(two_fa.totp_secret) == payload["secret"]
         assert two_fa.pending_totp_secret is None
 
     def test_complete_totp_setup_rejects_when_already_enabled(self, user_with_totp, valid_totp_token):

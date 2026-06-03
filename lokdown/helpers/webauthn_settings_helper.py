@@ -5,9 +5,11 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest
 
 _DEV_RP_ID_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]"})
+_DEV_DEFAULT_ORIGIN = "http://localhost:8000"
 
 # IPv6 loopback only — [::1] pages use the same rpId as localhost.
 _DEV_RP_ID_CANONICAL = {
@@ -55,7 +57,9 @@ def get_webauthn_expected_origin():
     """Value for py_webauthn ``expected_origin`` (str or list)."""
     origins = parse_webauthn_origins()
     if not origins:
-        return "http://localhost:8000"
+        if settings.DEBUG:
+            return _DEV_DEFAULT_ORIGIN
+        raise ImproperlyConfigured("WEBAUTHN_ORIGINS (or WEBAUTHN_ORIGIN) must be configured when DEBUG is False.")
     if len(origins) == 1:
         return origins[0]
     return origins

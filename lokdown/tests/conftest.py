@@ -7,8 +7,8 @@ from datetime import timedelta
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes
-from lokdown.helpers.totp_helper import get_or_create_totp
+from lokdown.helpers.backup_codes_helper import store_backup_codes
+from lokdown.helpers.totp_helper import get_or_create_totp, write_stored_secret
 from lokdown.models import LoginSession, PasskeyCredential
 
 
@@ -37,11 +37,9 @@ def totp_secret():
 @pytest.fixture
 def user_with_totp(user, totp_secret):
     two_fa = get_or_create_totp(user)
-    two_fa.totp_secret = totp_secret
+    two_fa.totp_secret = write_stored_secret(totp_secret)
     two_fa.save(update_fields=["totp_secret"])
-    backup = get_or_create_backup_codes(user)
-    backup.codes = ["BACKUP01", "BACKUP02"]
-    backup.save(update_fields=["codes"])
+    store_backup_codes(user, ["BACKUP01", "BACKUP02"])
     return user
 
 

@@ -1,4 +1,5 @@
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory
 
 from lokdown.helpers.webauthn_settings_helper import (
@@ -23,6 +24,19 @@ class TestWebauthnSettingsHelper:
         settings.WEBAUTHN_ORIGINS = ["http://a.test", "http://b.test"]
         settings.WEBAUTHN_ORIGIN = ""
         assert get_webauthn_expected_origin() == ["http://a.test", "http://b.test"]
+
+    def test_get_webauthn_expected_origin_dev_fallback(self, settings):
+        settings.DEBUG = True
+        settings.WEBAUTHN_ORIGINS = []
+        settings.WEBAUTHN_ORIGIN = ""
+        assert get_webauthn_expected_origin() == "http://localhost:8000"
+
+    def test_get_webauthn_expected_origin_fails_closed_in_production(self, settings):
+        settings.DEBUG = False
+        settings.WEBAUTHN_ORIGINS = []
+        settings.WEBAUTHN_ORIGIN = ""
+        with pytest.raises(ImproperlyConfigured, match="WEBAUTHN_ORIGINS"):
+            get_webauthn_expected_origin()
 
     def test_resolve_rp_id_from_origin_header(self, settings):
         settings.WEBAUTHN_RP_ID = "localhost"

@@ -22,6 +22,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from lokdown.helpers.backup_codes_helper import (
     generate_backup_codes,
     get_or_create_backup_codes,
+    store_backup_codes,
     user_backup_codes_exist,
     verify_backup_code,
 )
@@ -40,6 +41,7 @@ from lokdown.helpers.totp_helper import (
     generate_totp_secret,
     get_or_create_totp,
     has_totp_enabled,
+    read_stored_secret,
     setup_totp_complete,
     store_pending_totp_secret,
     verify_totp_login,
@@ -235,15 +237,15 @@ def complete_totp_setup(user: User, totp_token: str) -> tuple[bool, str | None, 
     if has_totp_enabled(user):
         return False, "TOTP is already enabled", []
     two_fa = get_or_create_totp(user)
-    secret = two_fa.pending_totp_secret
+    secret = read_stored_secret(two_fa.pending_totp_secret)
     if not secret:
         return False, "No pending TOTP setup found", []
     if not verify_totp_token_setup(secret, totp_token):
         return False, "Invalid TOTP token", []
-    if not setup_totp_complete(user, secret):
+    ok, backup_codes = setup_totp_complete(user, secret)
+    if not ok:
         return False, "Failed to complete TOTP setup", []
-    backup_codes_obj = get_or_create_backup_codes(user)
-    return True, None, list(backup_codes_obj.codes)
+    return True, None, backup_codes
 
 
 def begin_passkey_registration(user: User, request) -> dict[str, Any] | Response:
@@ -296,11 +298,7 @@ def complete_passkey_registration(
 
     backup_codes: list[str] = []
     if create_backup_codes_if_missing:
-        plaintext_codes = generate_backup_codes()
-        backup_codes_obj = get_or_create_backup_codes(user)
-        backup_codes_obj.codes = plaintext_codes
-        backup_codes_obj.save(update_fields=["codes", "updated_at"])
-        backup_codes = plaintext_codes
+        backup_codes = store_backup_codes(user, generate_backup_codes())
 
     return True, None, backup_codes
 

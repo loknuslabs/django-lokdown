@@ -4,7 +4,7 @@ from django.conf import settings
 from django.urls import reverse
 from rest_framework import status
 
-from lokdown.helpers.totp_helper import generate_totp_secret, get_or_create_totp
+from lokdown.helpers.totp_helper import generate_totp_secret, get_or_create_totp, read_stored_secret
 
 
 @pytest.mark.django_db
@@ -24,7 +24,7 @@ class TestTotpController:
         response = auth_client.post(reverse("lokdown:setup_totp"), {}, format="json")
         two_fa = get_or_create_totp(user)
         two_fa.refresh_from_db()
-        assert two_fa.pending_totp_secret == response.data["secret"]
+        assert read_stored_secret(two_fa.pending_totp_secret) == response.data["secret"]
         assert two_fa.totp_secret is None
 
     def test_setup_totp_rejects_when_already_enabled(self, auth_client_totp):
@@ -45,7 +45,7 @@ class TestTotpController:
         assert len(response.data["backup_codes"]) == settings.BACKUP_CODES_COUNT
         two_fa = get_or_create_totp(user)
         two_fa.refresh_from_db()
-        assert two_fa.totp_secret == secret
+        assert read_stored_secret(two_fa.totp_secret) == secret
         assert two_fa.pending_totp_secret is None
 
     def test_verify_totp_rejects_client_supplied_secret(self, auth_client, user):
@@ -61,8 +61,8 @@ class TestTotpController:
         assert response.status_code == status.HTTP_200_OK
         two_fa = get_or_create_totp(user)
         two_fa.refresh_from_db()
-        assert two_fa.totp_secret == server_secret
-        assert two_fa.totp_secret != attacker_secret
+        assert read_stored_secret(two_fa.totp_secret) == server_secret
+        assert read_stored_secret(two_fa.totp_secret) != attacker_secret
 
     def test_verify_totp_without_pending_setup_fails(self, auth_client):
         attacker_secret = generate_totp_secret()

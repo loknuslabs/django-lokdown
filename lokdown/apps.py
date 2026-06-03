@@ -7,7 +7,4 @@ class LokdownConfig(AppConfig):
     verbose_name = "Lokdown Authentication"
 
     def ready(self):
-        """Initialize the lokdown app when Django starts"""
-        # Import signals if needed
-        # from . import signals
-        pass
+        from lokdown import checks  # noqa: F401

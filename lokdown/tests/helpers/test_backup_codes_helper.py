@@ -5,6 +5,8 @@ from lokdown.helpers.backup_codes_helper import (
     generate_backup_codes,
     get_or_create_backup_codes,
     has_backup_codes,
+    is_hashed_backup_code,
+    store_backup_codes,
     user_backup_codes_exist,
     verify_backup_code,
 )
@@ -21,20 +23,28 @@ class TestGenerateBackupCodes:
 
 
 @pytest.mark.django_db
+class TestStoreBackupCodes:
+    def test_stores_hashed_codes(self, user):
+        plaintext = ["VALIDCODE1"]
+        store_backup_codes(user, plaintext)
+        obj = get_or_create_backup_codes(user)
+        assert len(obj.codes) == 1
+        assert is_hashed_backup_code(obj.codes[0])
+        assert obj.codes[0] != "VALIDCODE1"
+
+
+@pytest.mark.django_db
 class TestVerifyBackupCode:
     def test_valid_code_is_consumed(self, user):
-        obj = get_or_create_backup_codes(user)
-        obj.codes = ["VALIDCODE1"]
-        obj.save()
+        store_backup_codes(user, ["VALIDCODE1"])
 
         assert verify_backup_code(user, "VALIDCODE1", "127.0.0.1", "pytest") is True
+        obj = get_or_create_backup_codes(user)
         obj.refresh_from_db()
-        assert "VALIDCODE1" not in obj.codes
+        assert obj.codes == []
 
     def test_invalid_code_logs_failure(self, user):
-        obj = get_or_create_backup_codes(user)
-        obj.codes = ["VALIDCODE1"]
-        obj.save()
+        store_backup_codes(user, ["VALIDCODE1"])
 
         assert verify_backup_code(user, "WRONGCODE", "10.0.0.1", "agent") is False
         assert FailedBackupCodeAttempt.objects.filter(user=user).count() == 1
@@ -46,7 +56,5 @@ class TestVerifyBackupCode:
 
     def test_has_backup_codes_read_only(self, user):
         assert has_backup_codes(user) is False
-        backup = get_or_create_backup_codes(user)
-        backup.codes = ["CODEAAAA"]
-        backup.save(update_fields=["codes"])
+        store_backup_codes(user, ["CODEAAAA"])
         assert has_backup_codes(user) is True
