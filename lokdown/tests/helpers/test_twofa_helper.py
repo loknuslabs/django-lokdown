@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from webauthn import generate_authentication_options
 from webauthn.helpers.structs import PublicKeyCredentialDescriptor, PublicKeyCredentialType
@@ -32,10 +34,10 @@ class TestTwoFaHelper:
         assert methods["totp"] is True
         assert methods["backup_codes"] is True
 
-    def test_handle_2fa_error_includes_operation(self, user):
-        msg = handle_2fa_error(ValueError("boom"), user, "Test op")
-        assert "Test op failed" in msg
-        assert "boom" in msg
+    def test_handle_2fa_error_logs_server_side_only(self, user, caplog):
+        caplog.set_level(logging.ERROR)
+        handle_2fa_error(ValueError("boom"), user, "Test op")
+        assert "Test op failed for user testuser: boom" in caplog.text
 
     def test_serialize_webauthn_options_allow_credentials(self):
         cred_id = b"test-credential-id"

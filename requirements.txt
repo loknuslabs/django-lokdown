@@ -1,4 +1,6 @@
 # Runtime dependencies for django-lokdown (see pyproject.toml [project.dependencies])
+# Consumers should pin exact versions in production, e.g. django-lokdown==1.0.0 and
+# pip-compile/pylock a transitive lockfile; run `pip-audit` regularly on that lockfile.
 Django>=5.1
 django-ratelimit>=4.1.0
 djangorestframework>=3.16.1
@@ -16,3 +18,4 @@ black==26.5.1
 flake8>=7.3.0
 pytest>=8.4.0
 pytest-django>=4.11.0
+pip-audit>=2.9.0

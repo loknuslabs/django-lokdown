@@ -535,6 +535,8 @@ Base path assumes `path("api/", include("lokdown.urls"))`.
 4. **Session fixation** — `LoginSession` IDs are UUIDs, expire quickly, and cannot be reused after `is_authenticated=True`.
 5. **Rate limiting** — Backup verification only (per IP); TOTP/passkey are not rate-limited on `auth/verify` beyond Django/infra limits.
 6. **Verification before save** — TOTP secret and passkey credentials are persisted only after a successful verification step.
+7. **Dependency supply chain** — Pin `django-lokdown` and its transitive dependencies in production (`pip-tools`, `uv lock`, etc.) and run [`pip-audit`](https://pypi.org/project/pip-audit/) on your lockfile in CI.
+8. **`security_audit --cleanup`** — Dry-run by default; pass `--force` with `--cleanup` to delete expired sessions, old failed backup attempts, and stale passkeys.
 
 ---
 
@@ -548,6 +550,7 @@ Base path assumes `path("api/", include("lokdown.urls"))`.
 - [ ] On 2FA setup: call `setup/totp` then `verify/totp` with only `totp_token` (pending secret is stored server-side).
 - [ ] On passkey setup: pass `session_id` from setup into verify.
 - [ ] Treat backup codes as single-use; handle 429 on backup attempts.
+- [ ] Pin lokdown and transitive dependencies; run `pip-audit` in CI.
 
 ---
 

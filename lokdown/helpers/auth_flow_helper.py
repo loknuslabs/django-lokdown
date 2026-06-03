@@ -27,6 +27,7 @@ from lokdown.helpers.backup_codes_helper import (
     verify_backup_code,
 )
 from lokdown.helpers.common_helper import get_client_ip
+from lokdown.helpers.rate_limit_helper import check_totp_verify_rate_limit
 from lokdown.helpers.passkey_helper import (
     create_login_session_for_passkey,
     custom_generate_authentication_options,
@@ -173,6 +174,9 @@ def verify_second_factor(
     backup_code = (backup_code or "").strip() or None
 
     if totp_token and has_totp_enabled(session.user):
+        rate_limit_response = check_totp_verify_rate_limit(request, session.user.username)
+        if rate_limit_response:
+            return rate_limit_response
         if verify_totp_login(session.user, totp_token):
             _mark_session_verified(session, "totp")
             return session

@@ -265,11 +265,14 @@ The security app will automatically:
 ## Management Commands
 
 ```bash
-# Security audit
-python manage.py security_audit --days 30 --export --cleanup
+# Security audit (report only)
+python manage.py security_audit --days 30 --export
 
-# Clean up old data
+# Preview cleanup (dry-run; no deletions)
 python manage.py security_audit --cleanup
+
+# Apply cleanup deletions (expired sessions, old failed attempts, stale passkeys)
+python manage.py security_audit --cleanup --force
 ```
 
 ## Models
