@@ -2,6 +2,8 @@
 
 A reusable Django app that provides comprehensive Two-Factor Authentication (2FA) functionality with WebAuthn passkey support and enhanced admin integration.
 
+**Authentication workflow (login, 2FA, JWT, admin):** see [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md).
+
 ## Features
 
 - **TOTP (Time-based One-Time Password)**: Compatible with authenticator apps
@@ -31,7 +33,7 @@ INSTALLED_APPS = [
 ```python
 # urls.py
 from django.urls import path, include
-from lokdown.admin_url_override import override_admin_urls
+from lokdown.urls import override_admin_urls
 
 urlpatterns = [
     # ... your other URLs
@@ -81,7 +83,7 @@ BACKUP_CODE_LENGTH = 10
 # urls.py
 from django.urls import path, include
 from django.contrib import admin
-from lokdown.admin_url_override import override_admin_urls
+from lokdown.urls import override_admin_urls
 
 urlpatterns = [
     # Your app URLs
@@ -175,20 +177,16 @@ BACKUP_CODE_LENGTH = int(os.environ.get('BACKUP_CODE_LENGTH', '10'))
 
 ## API Endpoints
 
-### Authentication
-- `POST /api/auth/login` - Initialize login with 2FA check
-- `POST /api/auth/verify` - Complete login with 2FA verification
-- `POST /api/auth/2fa/verify/backup` - Dedicated backup code verification
+Full workflow documentation with request/response examples: **[docs/AUTHENTICATION.md](docs/AUTHENTICATION.md)**.
 
-### 2FA Management
-- `POST /api/auth/2fa/setup/totp` - Setup TOTP authentication
-- `POST /api/auth/2fa/verify/totp` - Verify TOTP setup
-- `POST /api/auth/2fa/passkey/setup` - Setup WebAuthn passkey
-- `POST /api/auth/2fa/passkey/verify` - Verify passkey setup
-- `GET /api/auth/2fa/status` - Get current 2FA status
-- `POST /api/auth/2fa/disable` - Disable 2FA for user
-- `GET /api/auth/2fa/passkey/credentials` - Get passkey credentials
-- `DELETE /api/auth/2fa/passkey/remove` - Remove passkey credential
+Quick reference (prefix `/api/` when included as `path("api/", include("lokdown.urls"))`):
+
+| Area | Paths |
+|------|--------|
+| Login | `auth/login`, `auth/verify`, `auth/token`, `auth/token/verify` |
+| TOTP setup | `auth/2fa/setup/totp`, `auth/2fa/verify/totp` |
+| Passkey | `auth/2fa/passkey/setup`, `auth/2fa/passkey/verify`, `auth/2fa/passkey/options` |
+| Backup / status | `auth/2fa/verify/backup`, `auth/2fa/status`, `auth/2fa/disable` |
 
 ## Django Admin
 
@@ -246,7 +244,7 @@ When `ADMIN_2FA_REQUIRED` is enabled, the security app automatically overrides D
 To enable admin 2FA in any Django project, simply add this to your `urls.py`:
 
 ```python
-from lokdown.admin_url_override import override_admin_urls
+from lokdown.urls import override_admin_urls
 
 urlpatterns = [
     # ... your other URLs
@@ -418,4 +416,4 @@ SECURITY_APP_CONFIG = {
 
 ## License
 
-This app is part of the PennyPusher project and follows the same license terms. 
+Install from PyPI as `django-lokdown` or from source with `pip install -e .`. 

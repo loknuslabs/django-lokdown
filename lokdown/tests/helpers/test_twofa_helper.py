@@ -1,0 +1,36 @@
+import pytest
+
+from lokdown.helpers.twofa_helper import (
+    get_available_2fa_methods,
+    handle_2fa_error,
+    is_2fa_enabled,
+)
+
+
+@pytest.mark.django_db
+class TestTwoFaHelper:
+    def test_is_2fa_enabled_with_totp(self, user_with_totp):
+        assert is_2fa_enabled(user_with_totp) is True
+
+    def test_is_2fa_enabled_with_passkey(self, user_with_passkey):
+        assert is_2fa_enabled(user_with_passkey) is True
+
+    def test_is_2fa_disabled_without_methods(self, user):
+        assert is_2fa_enabled(user) is False
+
+    def test_backup_codes_alone_do_not_enable_2fa(self, user):
+        from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes
+
+        get_or_create_backup_codes(user).codes = ["CODE1"]
+        get_or_create_backup_codes(user).save()
+        assert is_2fa_enabled(user) is False
+
+    def test_get_available_methods(self, user_with_totp):
+        methods = get_available_2fa_methods(user_with_totp)
+        assert methods["totp"] is True
+        assert methods["backup_codes"] is True
+
+    def test_handle_2fa_error_includes_operation(self, user):
+        msg = handle_2fa_error(ValueError("boom"), user, "Test op")
+        assert "Test op failed" in msg
+        assert "boom" in msg
