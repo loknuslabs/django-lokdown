@@ -31,6 +31,18 @@ class TestPasskeyController:
         assert response.data["backup_codes"] == ["BACKUP01", "BACKUP02"]
         mock_complete.assert_called_once()
 
+    @patch("lokdown.control.passkey_controller.complete_passkey_registration")
+    def test_verify_passkey_setup_generic_error(self, mock_complete, auth_client):
+        mock_complete.side_effect = ValueError("internal webauthn detail")
+        response = auth_client.post(
+            reverse("lokdown:verify_passkey_setup"),
+            {"session_id": "sess-1", "passkey_response": {"id": "x"}},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.data["error"] == "Passkey setup failed"
+        assert "internal webauthn detail" not in response.data["error"]
+
     @patch("lokdown.control.passkey_controller.begin_passkey_authentication")
     def test_get_passkey_auth_options(self, mock_begin, api_client, user_with_passkey):
         session = LoginSession.objects.create(

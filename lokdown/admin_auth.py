@@ -16,7 +16,6 @@ from lokdown.helpers.auth_flow_helper import (
     verify_admin_second_factor,
 )
 from lokdown.helpers.backup_codes_helper import (
-    get_or_create_backup_codes,
     user_backup_codes_exist,
 )
 from lokdown.helpers.passkey_helper import has_passkey_enabled
@@ -78,7 +77,6 @@ def admin_2fa_setup_view(request):
         setup_type = request.POST.get("setup_type")
         if setup_type == "totp":
             payload = begin_totp_setup(user)
-            request.session["pending_totp_secret"] = payload["secret"]
             return render(
                 request,
                 "2fa_setup_totp.html",
@@ -135,11 +133,10 @@ def admin_2fa_verify_totp_setup(request):
         return redirect("admin_login")
 
     if request.method == "POST":
-        secret = request.session.get("pending_totp_secret")
         totp_token = request.POST.get("totp_token")
-        ok, error, _backup_codes = complete_totp_setup(session.user, secret, totp_token)
+        ok, error, backup_codes = complete_totp_setup(session.user, totp_token)
         if ok:
-            del request.session["pending_totp_secret"]
+            request.session["admin_pending_backup_codes"] = backup_codes
             messages.success(request, "TOTP setup completed successfully!")
             return redirect("admin_2fa_backup_codes")
         messages.error(request, error or "Invalid TOTP token.")
@@ -157,7 +154,7 @@ def admin_2fa_setup_passkey_view(request):
     if request.method == "POST":
         passkey_response = request.POST.get("passkey_response")
         if passkey_response:
-            ok, error, _backup_codes = complete_passkey_registration(
+            ok, error, backup_codes = complete_passkey_registration(
                 user,
                 session.session_id,
                 passkey_response,
@@ -165,6 +162,7 @@ def admin_2fa_setup_passkey_view(request):
                 request=request,
             )
             if ok:
+                request.session["admin_pending_backup_codes"] = backup_codes
                 messages.success(request, "Passkey setup completed successfully!")
                 return redirect("admin_2fa_backup_codes")
             messages.error(request, error or "Passkey setup failed.")
@@ -193,16 +191,18 @@ def admin_current_user_totp_setup(request):
     get_or_create_totp(user)
 
     if request.method == "POST":
-        secret = request.session.get("pending_current_user_totp_secret")
-        ok, error, _backup_codes = complete_totp_setup(user, secret, request.POST.get("totp_code"))
+        ok, error, backup_codes = complete_totp_setup(user, request.POST.get("totp_code"))
         if ok:
-            del request.session["pending_current_user_totp_secret"]
+            request.session["admin_current_user_pending_backup_codes"] = backup_codes
             messages.success(request, "TOTP setup completed successfully!")
             return redirect("admin_current_user_backup_codes")
         messages.error(request, error or "Invalid TOTP code.")
 
+    if has_totp_enabled(user):
+        messages.error(request, "TOTP is already enabled.")
+        return redirect("admin:lokdown_usertimebasedonetimepasswords_changelist")
+
     payload = begin_totp_setup(user)
-    request.session["pending_current_user_totp_secret"] = payload["secret"]
     return render(
         request,
         "2fa_setup_totp.html",
@@ -228,7 +228,7 @@ def admin_current_user_passkey_setup(request):
             messages.error(request, "Session expired. Please try again.")
             return redirect("admin_current_user_passkey_setup")
 
-        ok, error, _backup_codes = complete_passkey_registration(
+        ok, error, backup_codes = complete_passkey_registration(
             user,
             session_id,
             passkey_response,
@@ -237,6 +237,7 @@ def admin_current_user_passkey_setup(request):
         )
         if ok:
             del request.session["current_user_passkey_session_id"]
+            request.session["admin_current_user_pending_backup_codes"] = backup_codes
             messages.success(request, "Passkey setup completed successfully!")
             return redirect("admin_current_user_backup_codes")
         messages.error(request, error or "Passkey setup failed.")
@@ -270,12 +271,16 @@ def admin_current_user_backup_codes(request):
         messages.error(request, "No backup codes found. Please complete 2FA setup first.")
         return redirect("admin:lokdown_usertimebasedonetimepasswords_changelist")
 
-    backup_codes_obj = get_or_create_backup_codes(request.user)
+    backup_codes = request.session.pop("admin_current_user_pending_backup_codes", None)
+    if backup_codes is None:
+        messages.warning(request, "Backup codes cannot be retrieved after they were shown once.")
+        backup_codes = []
+
     return render(
         request,
         "2fa_backup_codes.html",
         {
-            "backup_codes": backup_codes_obj.codes,
+            "backup_codes": backup_codes,
             "user": request.user,
             "is_current_user": True,
         },
@@ -290,12 +295,16 @@ def admin_2fa_backup_codes_view(request):
     if not user_backup_codes_exist(session.user):
         return redirect("admin_2fa_setup")
 
-    backup_codes_obj = get_or_create_backup_codes(session.user)
     if request.method == "POST":
         return redirect("admin:index")
+
+    backup_codes = request.session.pop("admin_pending_backup_codes", None)
+    if backup_codes is None:
+        messages.warning(request, "Backup codes cannot be retrieved after they were shown once.")
+        backup_codes = []
 
     return render(
         request,
         "2fa_backup_codes.html",
-        {"backup_codes": backup_codes_obj.codes, "user": session.user},
+        {"backup_codes": backup_codes, "user": session.user},
     )

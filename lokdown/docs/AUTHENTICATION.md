@@ -312,7 +312,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-Show the QR code or provisioning URI. Keep `secret` client-side until verification succeeds—it is **not** stored until step 2.
+Show the QR code or provisioning URI. The secret is stored **server-side** as a pending value until verification succeeds.
 
 **2. Confirm**
 
@@ -322,8 +322,7 @@ Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {
-  "totp_token": "123456",
-  "secret": "BASE32SECRET"
+  "totp_token": "123456"
 }
 ```
 
@@ -531,23 +530,27 @@ Base path assumes `path("api/", include("lokdown.urls"))`.
 ## Security notes
 
 1. **HTTPS in production** — WebAuthn requires a trustworthy origin (`WEBAUTHN_ORIGIN` must match the browser URL).
-2. **Backup codes** — Store hashed or offline; lokdown stores plain codes in JSON (consider your threat model).
-3. **Session fixation** — `LoginSession` IDs are UUIDs, expire quickly, and cannot be reused after `is_authenticated=True`.
-4. **Rate limiting** — Backup verification only (per IP); TOTP/passkey are not rate-limited on `auth/verify` beyond Django/infra limits.
-5. **Verification before save** — TOTP secret and passkey credentials are persisted only after a successful verification step.
+2. **TOTP secrets at rest** — Encrypted with Fernet. Set `LOKDOWN_FERNET_KEY` (url-safe base64, 32 bytes) in production; otherwise derived from `SECRET_KEY`.
+3. **Backup codes at rest** — Stored as salted hashes (Django password hasher). Plaintext codes are returned only once at generation via API/admin session flow.
+4. **Session fixation** — `LoginSession` IDs are UUIDs, expire quickly, and cannot be reused after `is_authenticated=True`.
+5. **Rate limiting** — Backup verification only (per IP); TOTP/passkey are not rate-limited on `auth/verify` beyond Django/infra limits.
+6. **Verification before save** — TOTP secret and passkey credentials are persisted only after a successful verification step.
+7. **Dependency supply chain** — Pin `django-lokdown` and its transitive dependencies in production (`pip-tools`, `uv lock`, etc.) and run [`pip-audit`](https://pypi.org/project/pip-audit/) on your lockfile in CI.
+8. **`security_audit --cleanup`** — Dry-run by default; pass `--force` with `--cleanup` to delete expired sessions, old failed backup attempts, and stale passkeys.
 
 ---
 
 ## Client checklist
 
-- [ ] Configure WebAuthn settings for each environment (localhost vs production).
+- [ ] Set `LOKDOWN_FERNET_KEY` in production (generate with `Fernet.generate_key()` from `cryptography`).
 - [ ] Include `path("api/", include("lokdown.urls"))` and call `override_admin_urls()`.
 - [ ] Branch on `requires_2fa` after password login.
 - [ ] For passkey login: call `passkey/options` before `verify`.
 - [ ] Store JWT; refresh via `auth/token/refresh`.
-- [ ] On 2FA setup: keep TOTP `secret` until `verify/totp` succeeds.
+- [ ] On 2FA setup: call `setup/totp` then `verify/totp` with only `totp_token` (pending secret is stored server-side).
 - [ ] On passkey setup: pass `session_id` from setup into verify.
 - [ ] Treat backup codes as single-use; handle 429 on backup attempts.
+- [ ] Pin lokdown and transitive dependencies; run `pip-audit` in CI.
 
 ---
 

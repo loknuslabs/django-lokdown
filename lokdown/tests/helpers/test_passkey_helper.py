@@ -1,4 +1,5 @@
 import base64
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,6 +12,7 @@ from lokdown.helpers.passkey_helper import (
     has_passkey_enabled,
     normalize_passkey_credential_response,
     save_passkey_to_database,
+    verify_passkey,
 )
 from lokdown.models import LoginSession, PasskeyCredential
 
@@ -78,3 +80,12 @@ class TestPasskeyHelper:
 
         assert repair_base64_form_value("abc def==") == "abc+def=="
         assert repair_base64_form_value("abc+def==") == "abc+def=="
+
+    def test_verify_passkey_rejects_session_user_mismatch(self, user, other_user):
+        session = LoginSession.objects.create(
+            user=other_user,
+            session_id="mismatch-session",
+            challenge=base64.b64encode(b"challenge").decode("utf-8"),
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+        assert verify_passkey(user, {"id": "cred"}, session.session_id) is False

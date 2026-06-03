@@ -21,12 +21,25 @@ class Command(BaseCommand):
             help="Number of days to look back for recent activity",
         )
         parser.add_argument("--export", action="store_true", help="Export detailed lokdown report")
-        parser.add_argument("--cleanup", action="store_true", help="Clean up old lokdown data")
+        parser.add_argument(
+            "--cleanup",
+            action="store_true",
+            help="Preview cleanup of old lokdown data (dry-run unless --force is also passed)",
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Apply deletions when used with --cleanup",
+        )
 
     def handle(self, *args, **options):
         days = options["days"]
         export = options["export"]
         cleanup = options["cleanup"]
+        force = options["force"]
+
+        if force and not cleanup:
+            self.stderr.write(self.style.WARNING("--force has no effect without --cleanup"))
 
         self.stdout.write(self.style.SUCCESS("🔒 Security Audit Report"))
         self.stdout.write("=" * 50)
@@ -112,7 +125,7 @@ class Command(BaseCommand):
 
         # Cleanup functionality
         if cleanup:
-            self.cleanup_old_data()
+            self.cleanup_old_data(dry_run=not force)
 
         self.stdout.write("\n" + "=" * 50)
         self.stdout.write(self.style.SUCCESS("Security audit completed!"))
@@ -123,24 +136,34 @@ class Command(BaseCommand):
         # This would generate a CSV or JSON report
         self.stdout.write("  Report export functionality would be implemented here")
 
-    def cleanup_old_data(self):
-        """Clean up old lokdown data"""
+    def cleanup_old_data(self, *, dry_run: bool = True):
+        """Clean up old lokdown data. Defaults to dry-run; pass force with cleanup to delete."""
         self.stdout.write("\n🧹 Cleaning up old data...")
+        if dry_run:
+            self.stdout.write(
+                self.style.WARNING("  Dry run — no records deleted. Re-run with --cleanup --force to apply.")
+            )
 
-        # Clean up expired sessions
         expired_sessions = LoginSession.objects.filter(expires_at__lt=timezone.now())
         expired_count = expired_sessions.count()
-        expired_sessions.delete()
-        self.stdout.write(f"  Deleted {expired_count} expired sessions")
+        if dry_run:
+            self.stdout.write(f"  Would delete {expired_count} expired sessions")
+        else:
+            expired_sessions.delete()
+            self.stdout.write(f"  Deleted {expired_count} expired sessions")
 
-        # Clean up old failed attempts (older than 30 days)
         old_attempts = FailedBackupCodeAttempt.objects.filter(created_at__lt=timezone.now() - timedelta(days=30))
         attempts_count = old_attempts.count()
-        old_attempts.delete()
-        self.stdout.write(f"  Deleted {attempts_count} old failed attempts")
+        if dry_run:
+            self.stdout.write(f"  Would delete {attempts_count} old failed attempts")
+        else:
+            old_attempts.delete()
+            self.stdout.write(f"  Deleted {attempts_count} old failed attempts")
 
-        # Clean up old passkeys (older than 90 days)
         old_passkeys = PasskeyCredential.objects.filter(last_used__lt=timezone.now() - timedelta(days=90))
         passkeys_count = old_passkeys.count()
-        old_passkeys.delete()
-        self.stdout.write(f"  Deleted {passkeys_count} old passkeys")
+        if dry_run:
+            self.stdout.write(f"  Would delete {passkeys_count} old passkeys")
+        else:
+            old_passkeys.delete()
+            self.stdout.write(f"  Deleted {passkeys_count} old passkeys")

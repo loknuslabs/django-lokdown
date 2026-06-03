@@ -147,11 +147,11 @@ def serialize_webauthn_options(options, visited=None):
 # ============================================================================
 
 
-def handle_2fa_error(error, user=None, operation="2FA operation"):
-    """Centralized error handling for 2FA operations"""
-    error_msg = f"{operation} failed: {str(error)}"
+def handle_2fa_error(error, user=None, operation="2FA operation") -> None:
+    """Log 2FA error details server-side without exposing them to clients."""
     if user:
-        logger.error(f"{error_msg} for user {user.username}")
+        logger.error(
+            "%s failed for user %s: %s", operation, user.username, error, exc_info=isinstance(error, BaseException)
+        )
     else:
-        logger.error(error_msg)
-    return error_msg
+        logger.error("%s failed: %s", operation, error, exc_info=isinstance(error, BaseException))

@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 
 from lokdown.helpers.auth_flow_helper import disable_user_2fa
-from lokdown.helpers.backup_codes_helper import generate_backup_codes, get_or_create_backup_codes
+from lokdown.helpers.backup_codes_helper import generate_backup_codes, store_backup_codes
 from lokdown.helpers.passkey_helper import has_passkey_enabled
 from lokdown.helpers.totp_helper import has_totp_enabled
 from lokdown.models import (
@@ -65,7 +65,6 @@ class UserTimeBasedOneTimePasswordsAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ("User", {"fields": ("user",)}),
-        ("TOTP", {"fields": ("totp_secret",), "classes": ("collapse",)}),
         ("Timestamps", {"fields": ("created_at", "updated_at", "last_used"), "classes": ("collapse",)}),
     )
 
@@ -86,11 +85,13 @@ class UserTimeBasedOneTimePasswordsAdmin(admin.ModelAdmin):
         updated = 0
         for row in queryset.select_related("user"):
             if has_totp_enabled(row.user) or has_passkey_enabled(row.user):
-                obj = get_or_create_backup_codes(row.user)
-                obj.codes = generate_backup_codes()
-                obj.save(update_fields=["codes", "updated_at"])
+                store_backup_codes(row.user, generate_backup_codes())
                 updated += 1
-        self.message_user(request, f"Regenerated backup codes for {updated} user(s).")
+        self.message_user(
+            request,
+            f"Regenerated backup codes for {updated} user(s). "
+            "New codes are stored securely and cannot be displayed from admin.",
+        )
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("user")
@@ -175,10 +176,13 @@ class BackupCodesAdmin(admin.ModelAdmin):
         updated = 0
         for obj in queryset.select_related("user"):
             if has_totp_enabled(obj.user) or has_passkey_enabled(obj.user):
-                obj.codes = generate_backup_codes()
-                obj.save(update_fields=["codes", "updated_at"])
+                store_backup_codes(obj.user, generate_backup_codes())
                 updated += 1
-        self.message_user(request, f"Regenerated codes for {updated} user(s).")
+        self.message_user(
+            request,
+            f"Regenerated codes for {updated} user(s). "
+            "New codes are stored securely and cannot be displayed from admin.",
+        )
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("user")

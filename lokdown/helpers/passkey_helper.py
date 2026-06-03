@@ -229,6 +229,14 @@ def verify_passkey(user: User, response_data: dict | str, session_id: str, reque
             session_id=session_id,
             expires_at__gt=timezone.now(),
         )
+        if session.user_id != user.id:
+            logger.warning(
+                "Passkey verification session user mismatch: session %s user %s, expected user %s",
+                session_id,
+                session.user_id,
+                user.id,
+            )
+            return False
         if not session.challenge:
             logger.warning("Passkey verification attempted without challenge on session %s", session_id)
             return False

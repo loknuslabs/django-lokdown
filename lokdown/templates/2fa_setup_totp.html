@@ -178,8 +178,6 @@
         
         <form method="post" action="{% if is_current_user %}{% url 'admin_current_user_totp_setup' %}{% else %}{% url 'admin_2fa_verify_totp' %}{% endif %}">
             {% csrf_token %}
-            <input type="hidden" name="secret" value="{{ secret }}">
-            <input type="hidden" name="qr_code" value="{{ qr_code }}">
             {% if overwrite %}
             <input type="hidden" name="overwrite" value="true">
             {% endif %}

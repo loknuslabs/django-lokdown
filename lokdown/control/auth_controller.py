@@ -10,6 +10,7 @@ from lokdown.helpers.auth_flow_helper import (
     initiate_password_login,
     verify_second_factor,
 )
+from lokdown.helpers.rate_limit_helper import check_login_init_rate_limit
 from lokdown.serializers import (
     LoginInitRequestSerializer,
     LoginVerifyRequestSerializer,
@@ -25,6 +26,7 @@ from lokdown.serializers import (
     responses={
         200: Pre2FALoginResponseSerializer,
         401: OpenApiResponse(description="Invalid credentials"),
+        429: OpenApiResponse(description="Too many authentication attempts"),
     },
 )
 @api_view(["POST"])
@@ -34,9 +36,14 @@ def login_init(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    data = serializer.validated_data
+    rate_limit_response = check_login_init_rate_limit(request, data["username"])
+    if rate_limit_response:
+        return rate_limit_response
+
     user = authenticate(
-        username=serializer.validated_data["username"],
-        password=serializer.validated_data["password"],
+        username=data["username"],
+        password=data["password"],
     )
     if not user:
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -63,7 +70,7 @@ def login_init(request):
         200: TokenPairResponseSerializer,
         401: OpenApiResponse(description="Invalid 2FA token"),
         400: OpenApiResponse(description="Invalid session or missing token"),
-        429: OpenApiResponse(description="Too many backup code attempts"),
+        429: OpenApiResponse(description="Too many authentication attempts"),
     },
 )
 @api_view(["POST"])

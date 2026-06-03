@@ -3,26 +3,37 @@
 # ============================================================================
 
 import base64
-import pyotp
-import qrcode
 import logging
 from io import BytesIO
+
+import pyotp
+import qrcode
 from django.conf import settings
 from django.contrib.auth.models import User
-from lokdown.helpers.backup_codes_helper import (
-    generate_backup_codes,
-    get_or_create_backup_codes,
-)
+
+from lokdown.helpers.backup_codes_helper import generate_backup_codes, store_backup_codes
+from lokdown.helpers.encryption_helper import decrypt_secret, encrypt_secret
 from lokdown.models import UserTimeBasedOneTimePasswords
 
 logger = logging.getLogger(__name__)
 
 
-# todo double check usages
 def get_or_create_totp(user: User) -> UserTimeBasedOneTimePasswords:
     """Get or create 2FA settings for user (only for TOTP users)"""
-    two_fa, created = UserTimeBasedOneTimePasswords.objects.get_or_create(user=user)
+    two_fa, _created = UserTimeBasedOneTimePasswords.objects.get_or_create(user=user)
     return two_fa
+
+
+def read_stored_secret(stored: str | None) -> str | None:
+    if not stored:
+        return None
+    return decrypt_secret(stored)
+
+
+def write_stored_secret(plaintext: str | None) -> str | None:
+    if not plaintext:
+        return None
+    return encrypt_secret(plaintext)
 
 
 def has_totp_enabled(user: User) -> bool:
@@ -49,7 +60,6 @@ def generate_totp_qr_code(secret, user):
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
 
-    # Convert to base64
     buffer = BytesIO()
     img.save(buffer)
     return base64.b64encode(buffer.getvalue()).decode()
@@ -69,30 +79,37 @@ def verify_totp_login(user: User, token: str) -> bool:
     """Verify TOTP token"""
     try:
         two_fa = UserTimeBasedOneTimePasswords.objects.get(user=user)
-        if not two_fa.totp_secret:
+        secret = read_stored_secret(two_fa.totp_secret)
+        if not secret:
             return False
 
-        totp = pyotp.TOTP(two_fa.totp_secret)
+        totp = pyotp.TOTP(secret)
         return totp.verify(token)
     except UserTimeBasedOneTimePasswords.DoesNotExist:
         return False
 
 
-# todo double-check usages
-def setup_totp_complete(user, secret):
-    """Complete TOTP setup by saving secret and generating backup codes"""
+def store_pending_totp_secret(user: User, secret: str) -> None:
+    """Store a pending TOTP secret server-side until setup is verified."""
+    two_fa = get_or_create_totp(user)
+    two_fa.pending_totp_secret = write_stored_secret(secret)
+    two_fa.save(update_fields=["pending_totp_secret", "updated_at"])
+
+
+def setup_totp_complete(user, secret) -> tuple[bool, list[str]]:
+    """Complete TOTP setup by saving secret and generating backup codes."""
     try:
-        # create or update new totp
         two_fa = get_or_create_totp(user)
-        two_fa.totp_secret = secret
-        two_fa.save()
+        if two_fa.totp_secret:
+            logger.warning(f"TOTP already enabled for user {user.username}")
+            return False, []
+        two_fa.totp_secret = write_stored_secret(secret)
+        two_fa.pending_totp_secret = None
+        two_fa.save(update_fields=["totp_secret", "pending_totp_secret", "updated_at"])
 
-        # Generate backup codes
-        backup_codes_obj = get_or_create_backup_codes(user)
-        backup_codes_obj.codes = generate_backup_codes()
-        backup_codes_obj.save()
-
-        return True
+        plaintext_codes = generate_backup_codes()
+        store_backup_codes(user, plaintext_codes)
+        return True, plaintext_codes
     except Exception as e:
         logger.error(f"Failed to complete TOTP setup for user {user.username}: {str(e)}")
-        return False
+        return False, []

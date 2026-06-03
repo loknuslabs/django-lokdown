@@ -287,8 +287,7 @@ Detailed authentication and 2FA workflows: **[lokdown/docs/AUTHENTICATION.md](lo
 **Request:**
 ```json
 {
-    "totp_token": "123456",
-    "secret": "JBSWY3DPEHPK3PXP"
+    "totp_token": "123456"
 }
 ```
 

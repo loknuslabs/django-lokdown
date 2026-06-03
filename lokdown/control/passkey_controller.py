@@ -77,8 +77,11 @@ def verify_passkey_setup(request):
             ).data
         )
     except Exception as e:
-        error_msg = handle_2fa_error(e, request.user, "Passkey setup")
-        return Response(ErrorResponseSerializer({"error": error_msg}).data, status=status.HTTP_401_UNAUTHORIZED)
+        handle_2fa_error(e, request.user, "Passkey setup")
+        return Response(
+            ErrorResponseSerializer({"error": "Passkey setup failed"}).data,
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
 
 @extend_schema(
