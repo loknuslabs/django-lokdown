@@ -12,7 +12,6 @@ from lokdown.helpers.auth_flow_helper import (
 )
 from lokdown.helpers.twofa_helper import is_2fa_enabled
 from lokdown.serializers import (
-    Pre2FALoginResponseSerializer,
     SimpleJwtTokenPairResponseSerializer,
     TokenVerify2FARequestSerializer,
 )
@@ -25,6 +24,25 @@ from lokdown.serializers import (
 )
 class TaggedTokenRefreshView(TokenRefreshView):
     pass
+
+
+def _flatten_validation_detail(detail):
+    """Normalize DRF ValidationError.detail for JSON responses."""
+    if not isinstance(detail, dict):
+        return detail
+    bool_keys = {"requires_2fa", "totp_enabled", "passkey_enabled", "backup_codes_available"}
+    flat = {}
+    for key, value in detail.items():
+        if isinstance(value, list) and value:
+            item = value[0]
+        else:
+            item = value
+        if hasattr(item, "code"):
+            item = str(item)
+        if key in bool_keys and isinstance(item, str):
+            item = item == "True"
+        flat[key] = item
+    return flat
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -60,9 +78,10 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         try:
             serializer.is_valid(raise_exception=True)
         except serializers.ValidationError as e:
-            if isinstance(e.detail, dict) and e.detail.get("requires_2fa"):
-                return Response(Pre2FALoginResponseSerializer(e.detail).data, status=status.HTTP_401_UNAUTHORIZED)
-            return Response(e.detail, status=status.HTTP_401_UNAUTHORIZED)
+            flat = _flatten_validation_detail(e.detail)
+            if isinstance(flat, dict) and flat.get("requires_2fa"):
+                return Response(flat, status=status.HTTP_401_UNAUTHORIZED)
+            return Response(flat, status=status.HTTP_401_UNAUTHORIZED)
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
