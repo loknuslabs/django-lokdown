@@ -1,0 +1,902 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Django Lokdown",
+        "version": "1.0.0",
+        "contact": {
+            "name": "Loknus Labs LLC",
+            "email": "loknuslabs@gmail.com",
+            "url": "https://loknuslabs.io"
+        },
+        "license": {
+            "name": "GNU General Public License v3.0",
+            "url": "https://www.gnu.org/licenses/gpl-3.0.html"
+        }
+    },
+    "paths": {
+        "/api/api/token": {
+            "post": {
+                "operationId": "api_token_create",
+                "description": "Authenticate user and obtain access/refresh tokens. If 2FA is enabled, returns session info for 2FA verification.",
+                "summary": "Obtain JWT token pair",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CustomTokenObtainPairRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CustomTokenObtainPairRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CustomTokenObtainPairRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tokens obtained successfully"
+                    },
+                    "401": {
+                        "description": "Invalid credentials or 2FA required"
+                    }
+                }
+            }
+        },
+        "/api/api/token/refresh": {
+            "post": {
+                "operationId": "api_token_refresh_create",
+                "description": "Takes a valid refresh token and returns a new access token.",
+                "summary": "Refresh JWT token",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TokenRefreshRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TokenRefreshRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TokenRefreshRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenRefresh"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            }
+        },
+        "/api/auth/token/verify": {
+            "post": {
+                "operationId": "auth_token_verify_create",
+                "description": "Complete token generation after successful 2FA verification",
+                "summary": "Complete token generation after 2FA",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string"
+                                    },
+                                    "totp_token": {
+                                        "type": "string"
+                                    },
+                                    "passkey_response": {
+                                        "type": "object"
+                                    },
+                                    "backup_code": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tokens generated successfully"
+                    },
+                    "401": {
+                        "description": "Invalid 2FA token"
+                    },
+                    "400": {
+                        "description": "Invalid session or missing token"
+                    }
+                }
+            }
+        },
+        "/api/auth/login": {
+            "post": {
+                "operationId": "auth_login_create",
+                "description": "Start login process and check if 2FA is required",
+                "summary": "Initialize login with 2FA",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginInitRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginInitRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginInitRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Login initiated, 2FA required"
+                    },
+                    "401": {
+                        "description": "Invalid credentials"
+                    }
+                }
+            }
+        },
+        "/api/auth/verify": {
+            "post": {
+                "operationId": "auth_verify_create",
+                "description": "Complete login by verifying 2FA token (TOTP, Passkey, or backup code)",
+                "summary": "Verify 2FA and complete login",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginVerifyRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginVerifyRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginVerifyRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Login successful"
+                    },
+                    "401": {
+                        "description": "Invalid 2FA token"
+                    },
+                    "400": {
+                        "description": "Invalid session or missing token"
+                    },
+                    "429": {
+                        "description": "Too many backup code attempts"
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/setup/totp": {
+            "post": {
+                "operationId": "auth_2fa_setup_totp_create",
+                "description": "Generate TOTP secret and QR code for authenticator app",
+                "summary": "Setup TOTP for user",
+                "tags": [
+                    "2FA TOTP"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TOTPSetupRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TOTPSetupRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TOTPSetupRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "TOTP setup successful"
+                    },
+                    "400": {
+                        "description": "Invalid user ID"
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/verify/totp": {
+            "post": {
+                "operationId": "auth_2fa_verify_totp_create",
+                "description": "Verify TOTP token to complete setup",
+                "summary": "Verify TOTP setup",
+                "tags": [
+                    "2FA TOTP"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TOTPVerifyRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TOTPVerifyRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TOTPVerifyRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "TOTP verification successful"
+                    },
+                    "401": {
+                        "description": "Invalid TOTP token"
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/passkey/credentials": {
+            "get": {
+                "operationId": "auth_2fa_passkey_credentials_list",
+                "description": "Get all passkey credentials for user",
+                "summary": "Get passkey credentials",
+                "tags": [
+                    "2FA Passkey"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/PasskeyCredential"
+                                    }
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/passkey/remove": {
+            "delete": {
+                "operationId": "auth_2fa_passkey_remove_destroy",
+                "description": "Remove specific passkey credential",
+                "summary": "Remove passkey credential",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "credential_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "tags": [
+                    "2FA Passkey"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Passkey credential removed"
+                    },
+                    "400": {
+                        "description": "Credential not found"
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/passkey/setup": {
+            "post": {
+                "operationId": "auth_2fa_passkey_setup_create",
+                "description": "Generate passkey registration options",
+                "summary": "Setup passkey for user",
+                "tags": [
+                    "2FA Passkey"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeySetupRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeySetupRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeySetupRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Passkey setup options generated"
+                    },
+                    "400": {
+                        "description": "Invalid user ID"
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/passkey/verify": {
+            "post": {
+                "operationId": "auth_2fa_passkey_verify_create",
+                "description": "Verify passkey registration response",
+                "summary": "Verify passkey setup",
+                "tags": [
+                    "2FA Passkey"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyVerifyRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyVerifyRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyVerifyRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Passkey setup verified successfully"
+                    },
+                    "401": {
+                        "description": "Invalid passkey response"
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/passkey/options": {
+            "post": {
+                "operationId": "auth_2fa_passkey_options_create",
+                "description": "Generate passkey authentication options for login",
+                "summary": "Get passkey authentication options",
+                "tags": [
+                    "2FA Passkey"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyAuthOptionsRequestRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyAuthOptionsRequestRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyAuthOptionsRequestRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PasskeyAuthOptionsResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid session"
+                    },
+                    "500": {
+                        "description": "Failed to generate options"
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/verify/backup": {
+            "post": {
+                "operationId": "auth_2fa_verify_backup_create",
+                "description": "Verify backup code with strict rate limiting (10 attempts per minute)",
+                "summary": "Verify backup code",
+                "tags": [
+                    "2FA Backup Code"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupCodeRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupCodeRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BackupCodeRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Backup code verified successfully"
+                    },
+                    "401": {
+                        "description": "Invalid backup code"
+                    },
+                    "429": {
+                        "description": "Too many backup code attempts"
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/status": {
+            "get": {
+                "operationId": "auth_2fa_status_retrieve",
+                "description": "Get current 2FA status for user",
+                "summary": "Get 2FA status",
+                "tags": [
+                    "2FA"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TwoFactorAuth"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            }
+        },
+        "/api/auth/2fa/disable": {
+            "post": {
+                "operationId": "auth_2fa_disable_create",
+                "description": "Disable 2FA for user",
+                "summary": "Disable 2FA",
+                "tags": [
+                    "2FA"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DisableTwoFAResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "BackupCodeRequest": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "backup_code": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "backup_code",
+                    "session_id"
+                ]
+            },
+            "CustomTokenObtainPairRequest": {
+                "type": "object",
+                "description": "Custom serializer that handles 2FA requirements",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "writeOnly": true,
+                        "minLength": 1
+                    },
+                    "password": {
+                        "type": "string",
+                        "writeOnly": true,
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "password",
+                    "username"
+                ]
+            },
+            "DisableTwoFAResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "message"
+                ]
+            },
+            "LoginInitRequest": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "password": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "password",
+                    "username"
+                ]
+            },
+            "LoginVerifyRequest": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "totp_token": {
+                        "type": "string"
+                    },
+                    "passkey_response": {},
+                    "backup_code": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "session_id"
+                ]
+            },
+            "PasskeyAuthOptionsRequestRequest": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "session_id"
+                ]
+            },
+            "PasskeyAuthOptionsResponse": {
+                "type": "object",
+                "properties": {
+                    "challenge": {
+                        "type": "string"
+                    },
+                    "rp_id": {
+                        "type": "string"
+                    },
+                    "timeout": {
+                        "type": "integer"
+                    },
+                    "options": {}
+                },
+                "required": [
+                    "challenge",
+                    "options",
+                    "rp_id",
+                    "timeout"
+                ]
+            },
+            "PasskeyCredential": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "readOnly": true
+                    },
+                    "credential_id": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "sign_count": {
+                        "type": "integer",
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "format": "int64"
+                    },
+                    "rp_id": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "user_handle": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "readOnly": true
+                    },
+                    "last_used": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "created_at",
+                    "credential_id",
+                    "id",
+                    "rp_id",
+                    "user_handle"
+                ]
+            },
+            "PasskeySetupRequest": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "user_id"
+                ]
+            },
+            "PasskeyVerifyRequest": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "integer"
+                    },
+                    "passkey_response": {}
+                },
+                "required": [
+                    "passkey_response",
+                    "user_id"
+                ]
+            },
+            "TOTPSetupRequest": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "user_id"
+                ]
+            },
+            "TOTPVerifyRequest": {
+                "type": "object",
+                "properties": {
+                    "user_id": {
+                        "type": "integer"
+                    },
+                    "totp_token": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "secret": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "totp_token",
+                    "user_id"
+                ]
+            },
+            "TokenRefresh": {
+                "type": "object",
+                "properties": {
+                    "access": {
+                        "type": "string",
+                        "readOnly": true
+                    },
+                    "refresh": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "access",
+                    "refresh"
+                ]
+            },
+            "TokenRefreshRequest": {
+                "type": "object",
+                "properties": {
+                    "refresh": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "refresh"
+                ]
+            },
+            "TwoFactorAuth": {
+                "type": "object",
+                "properties": {
+                    "is_enabled": {
+                        "type": "boolean",
+                        "readOnly": true
+                    },
+                    "totp_enabled": {
+                        "type": "boolean",
+                        "readOnly": true
+                    },
+                    "passkey_enabled": {
+                        "type": "boolean",
+                        "readOnly": true
+                    }
+                },
+                "required": [
+                    "is_enabled",
+                    "passkey_enabled",
+                    "totp_enabled"
+                ]
+            }
+        },
+        "securitySchemes": {
+            "jwtAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
+    }
+}

@@ -18,15 +18,15 @@ jobs:
       with:
         python-version: 3.13
 
-    - name: Install dependencies
-      run: pip install -r requirements.txt
+    - name: Install package and dev dependencies
+      run: pip install -e ".[dev]"
 
     - name: Check code formatting
       run: |
-        black --check .
-        flake8 .
+        black --check lokdown example
+        flake8 lokdown example
 
-    - name: Check project
+    - name: Check example project
       run: python manage.py check
 
     - name: Check deploy settings

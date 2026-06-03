@@ -1,6 +1,6 @@
 import secrets
 from django.contrib.auth.models import User
-from configuration import settings
+from django.conf import settings
 from lokdown.models import FailedBackupCodeAttempt, BackupCodes
 
 

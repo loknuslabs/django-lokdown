@@ -418,4 +418,4 @@ SECURITY_APP_CONFIG = {
 
 ## License
 
-This app is part of the PennyPusher project and follows the same license terms. 
+Install from PyPI as `django-lokdown` or from source with `pip install -e .`. 
