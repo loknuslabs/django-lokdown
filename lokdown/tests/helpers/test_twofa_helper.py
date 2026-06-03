@@ -1,9 +1,12 @@
 import pytest
+from webauthn import generate_authentication_options
+from webauthn.helpers.structs import PublicKeyCredentialDescriptor, PublicKeyCredentialType
 
 from lokdown.helpers.twofa_helper import (
     get_available_2fa_methods,
     handle_2fa_error,
     is_2fa_enabled,
+    serialize_webauthn_options,
 )
 
 
@@ -34,3 +37,20 @@ class TestTwoFaHelper:
         msg = handle_2fa_error(ValueError("boom"), user, "Test op")
         assert "Test op failed" in msg
         assert "boom" in msg
+
+    def test_serialize_webauthn_options_allow_credentials(self):
+        cred_id = b"test-credential-id"
+        options = generate_authentication_options(
+            rp_id="localhost",
+            allow_credentials=[
+                PublicKeyCredentialDescriptor(
+                    id=cred_id,
+                    type=PublicKeyCredentialType.PUBLIC_KEY,
+                )
+            ],
+        )
+        serialized = serialize_webauthn_options(options)
+        assert "allowCredentials" in serialized
+        assert len(serialized["allowCredentials"]) == 1
+        assert serialized["allowCredentials"][0]["type"] == "public-key"
+        assert isinstance(serialized["allowCredentials"][0]["id"], str)

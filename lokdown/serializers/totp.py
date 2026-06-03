@@ -20,5 +20,18 @@ class MessageResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
+class TwoFactorSetupCompleteResponseSerializer(serializers.Serializer):
+    """Returned after successful TOTP or passkey enrollment verification."""
+
+    message = serializers.CharField()
+    backup_codes = serializers.ListField(
+        child=serializers.CharField(),
+        help_text=(
+            "Plaintext backup codes shown once after setup. "
+            "Empty when passkey enrollment did not generate new codes (user already had codes)."
+        ),
+    )
+
+
 class ErrorResponseSerializer(serializers.Serializer):
     error = serializers.CharField()

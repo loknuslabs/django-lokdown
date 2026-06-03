@@ -104,9 +104,7 @@ python generate_docs.py
 ```
 
 Generated on: {date}
-""".format(
-        date=subprocess.run("date", shell=True, capture_output=True, text=True).stdout.strip()
-    )
+""".format(date=subprocess.run("date", shell=True, capture_output=True, text=True).stdout.strip())
 
     with open("docs/README.md", "w") as f:
         f.write(readme_content)

@@ -36,6 +36,7 @@ from lokdown.serializers.totp import (
     TOTPSetupRequestSerializer,
     TOTPSetupResponseSerializer,
     TOTPVerifySetupRequestSerializer,
+    TwoFactorSetupCompleteResponseSerializer,
 )
 
 # Backwards-compatible aliases
@@ -83,5 +84,6 @@ __all__ = [
     "TOTPVerifySetupRequestSerializer",
     "TOTPVerifySerializer",
     "TwoFactorAuthSerializer",
+    "TwoFactorSetupCompleteResponseSerializer",
     "TwoFactorStatusResponseSerializer",
 ]

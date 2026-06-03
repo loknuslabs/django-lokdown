@@ -71,14 +71,18 @@ def create_authentication_session(user, request=None) -> str | None:
         return None
 
 
-def validate_session_data(session_id: str | None) -> tuple[LoginSession | None, str | None]:
+def validate_session_data(
+    session_id: str | None,
+    request=None,
+) -> tuple[LoginSession | None, str | None]:
     if not session_id:
         return None, "No session ID provided"
     try:
         session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
-        return session, None
     except LoginSession.DoesNotExist:
         return None, "Invalid or expired session"
+
+    return session, None
 
 
 def require_self_user(request_user: User, user_id: int) -> User | Response:
@@ -171,7 +175,7 @@ def verify_second_factor(
         return Response({"error": "Invalid TOTP token"}, status=status.HTTP_401_UNAUTHORIZED)
 
     if passkey_response and has_passkey_enabled(session.user):
-        if verify_passkey(session.user, passkey_response, session_id):
+        if verify_passkey(session.user, passkey_response, session_id, request):
             _mark_session_verified(session, "passkey")
             return session
         return Response({"error": "Invalid passkey response"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -222,18 +226,19 @@ def begin_totp_setup(user: User) -> dict[str, Any]:
     }
 
 
-def complete_totp_setup(user: User, secret: str, totp_token: str) -> tuple[bool, str | None]:
+def complete_totp_setup(user: User, secret: str, totp_token: str) -> tuple[bool, str | None, list[str]]:
     if not secret or not totp_token:
-        return False, "Missing secret or token"
+        return False, "Missing secret or token", []
     if not verify_totp_token_setup(secret, totp_token):
-        return False, "Invalid TOTP token"
+        return False, "Invalid TOTP token", []
     if not setup_totp_complete(user, secret):
-        return False, "Failed to complete TOTP setup"
-    return True, None
+        return False, "Failed to complete TOTP setup", []
+    backup_codes_obj = get_or_create_backup_codes(user)
+    return True, None, list(backup_codes_obj.codes)
 
 
 def begin_passkey_registration(user: User, request) -> dict[str, Any] | Response:
-    options = generate_passkey_options(user)
+    options = generate_passkey_options(user, request)
     if not options:
         return Response(
             {"error": "Failed to generate passkey options"},
@@ -259,7 +264,8 @@ def complete_passkey_registration(
     passkey_response: dict | str,
     *,
     create_backup_codes_if_missing: bool = True,
-) -> tuple[bool, str | None]:
+    request=None,
+) -> tuple[bool, str | None, list[str]]:
     try:
         session = LoginSession.objects.get(
             session_id=session_id,
@@ -267,24 +273,27 @@ def complete_passkey_registration(
             expires_at__gt=timezone.now(),
         )
     except LoginSession.DoesNotExist:
-        return False, "Invalid or expired session"
+        return False, "Invalid or expired session", []
 
     if not session.challenge:
-        return False, "No valid session challenge found"
+        return False, "No valid session challenge found", []
 
-    verification = verify_passkey_registration(passkey_response, session.challenge)
+    verification = verify_passkey_registration(passkey_response, session.challenge, request)
     if not verification:
-        return False, "Invalid passkey response"
+        return False, "Invalid passkey response", []
 
-    if not save_passkey_to_database(user, verification):
-        return False, "Failed to save passkey credential"
+    if not save_passkey_to_database(user, verification, request):
+        return False, "Failed to save passkey credential", []
 
-    if create_backup_codes_if_missing and not user_backup_codes_exist(user):
+    backup_codes: list[str] = []
+    if create_backup_codes_if_missing:
+        plaintext_codes = generate_backup_codes()
         backup_codes_obj = get_or_create_backup_codes(user)
-        backup_codes_obj.codes = generate_backup_codes()
-        backup_codes_obj.save()
+        backup_codes_obj.codes = plaintext_codes
+        backup_codes_obj.save(update_fields=["codes", "updated_at"])
+        backup_codes = plaintext_codes
 
-    return True, None
+    return True, None, backup_codes
 
 
 def validate_login_session(session_id: str | None) -> LoginSession | Response:
@@ -295,14 +304,14 @@ def validate_login_session(session_id: str | None) -> LoginSession | Response:
     return session
 
 
-def begin_passkey_authentication(session: LoginSession) -> dict[str, Any] | Response:
+def begin_passkey_authentication(session: LoginSession, request=None) -> dict[str, Any] | Response:
     if not has_passkey_enabled(session.user):
         return Response(
             {"error": "User does not have passkey enabled"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    options = custom_generate_authentication_options()
+    options = custom_generate_authentication_options(session.user, request)
     if not options:
         return Response(
             {"error": "Failed to generate authentication options"},
@@ -362,7 +371,7 @@ def verify_admin_second_factor(
     if passkey_response and has_passkey_enabled(session.user):
         if isinstance(passkey_response, str):
             passkey_response = json.loads(passkey_response)
-        if verify_passkey(session.user, passkey_response, session.session_id):
+        if verify_passkey(session.user, passkey_response, session.session_id, request):
             _mark_session_verified(session, "passkey")
             return True, None
         return False, "Invalid passkey response"
@@ -383,13 +392,15 @@ def verify_admin_second_factor(
     return False, "Invalid 2FA token"
 
 
-def admin_passkey_auth_options_payload(session: LoginSession) -> dict[str, Any] | Response:
+def admin_passkey_auth_options_payload(session: LoginSession, request=None) -> dict[str, Any] | Response:
     """Challenge payload for admin passkey verify template (no nested options)."""
-    result = begin_passkey_authentication(session)
+    result = begin_passkey_authentication(session, request)
     if isinstance(result, Response):
         return result
+    serialized_options = result.get("options") or {}
     return {
         "challenge": result["challenge"],
         "rp_id": result["rp_id"],
         "timeout": result["timeout"],
+        "allow_credentials": serialized_options.get("allowCredentials", []),
     }

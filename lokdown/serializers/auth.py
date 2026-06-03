@@ -48,3 +48,4 @@ class AdminPasskeyAuthOptionsResponseSerializer(serializers.Serializer):
     challenge = serializers.CharField()
     rp_id = serializers.CharField()
     timeout = serializers.IntegerField()
+    allow_credentials = serializers.JSONField(required=False)

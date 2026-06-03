@@ -1,6 +1,8 @@
 import base64
 import logging
 from django.contrib.auth.models import User
+from webauthn.helpers import bytes_to_base64url
+from webauthn.helpers.structs import PublicKeyCredentialDescriptor
 from lokdown.helpers.passkey_helper import has_passkey_enabled
 from lokdown.helpers.totp_helper import has_totp_enabled
 from lokdown.models import (
@@ -52,6 +54,19 @@ def get_available_2fa_methods(user: User) -> dict:
 # ============================================================================
 
 
+def serialize_credential_descriptor(descriptor: PublicKeyCredentialDescriptor) -> dict:
+    """Serialize a WebAuthn credential descriptor for JSON API responses."""
+    result = {
+        "id": bytes_to_base64url(descriptor.id),
+        "type": descriptor.type.value if hasattr(descriptor.type, "value") else descriptor.type,
+    }
+    if descriptor.transports:
+        result["transports"] = [
+            transport.value if hasattr(transport, "value") else transport for transport in descriptor.transports
+        ]
+    return result
+
+
 # todo can we serialize this object better?
 def serialize_webauthn_options(options, visited=None):
     """Serialize WebAuthn options to JSON-compatible dict with camelCase keys"""
@@ -72,6 +87,7 @@ def serialize_webauthn_options(options, visited=None):
         "resident_key": "residentKey",
         "attestation_conveyance": "attestationConveyance",
         "exclude_credentials": "excludeCredentials",
+        "allow_credentials": "allowCredentials",
         "supported_pub_key_algs": "supportedPubKeyAlgs",
         "display_name": "displayName",
     }
@@ -113,6 +129,8 @@ def serialize_webauthn_options(options, visited=None):
             elif key == "attestation":
                 # Special handling for attestation
                 result[camel_key] = value.value
+            elif key in ("allow_credentials", "exclude_credentials"):
+                result[camel_key] = [serialize_credential_descriptor(desc) for desc in (value or [])]
             elif hasattr(value, "value"):  # Handle enum-like objects
                 result[camel_key] = value.value
             else:

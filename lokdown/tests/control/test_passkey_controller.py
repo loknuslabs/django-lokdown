@@ -21,13 +21,14 @@ class TestPasskeyController:
 
     @patch("lokdown.control.passkey_controller.complete_passkey_registration")
     def test_verify_passkey_setup_success(self, mock_complete, auth_client):
-        mock_complete.return_value = (True, None)
+        mock_complete.return_value = (True, None, ["BACKUP01", "BACKUP02"])
         response = auth_client.post(
             reverse("lokdown:verify_passkey_setup"),
             {"session_id": "sess-1", "passkey_response": {"id": "x"}},
             format="json",
         )
         assert response.status_code == status.HTTP_200_OK
+        assert response.data["backup_codes"] == ["BACKUP01", "BACKUP02"]
         mock_complete.assert_called_once()
 
     @patch("lokdown.control.passkey_controller.begin_passkey_authentication")

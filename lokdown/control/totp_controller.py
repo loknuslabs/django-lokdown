@@ -7,10 +7,10 @@ from rest_framework import status
 from lokdown.helpers.auth_flow_helper import begin_totp_setup, complete_totp_setup
 from lokdown.serializers import (
     ErrorResponseSerializer,
-    MessageResponseSerializer,
     TOTPSetupRequestSerializer,
     TOTPSetupResponseSerializer,
     TOTPVerifySetupRequestSerializer,
+    TwoFactorSetupCompleteResponseSerializer,
 )
 
 
@@ -32,7 +32,7 @@ def setup_totp(request):
     tags=["2FA TOTP"],
     request=TOTPVerifySetupRequestSerializer,
     responses={
-        200: MessageResponseSerializer,
+        200: TwoFactorSetupCompleteResponseSerializer,
         401: ErrorResponseSerializer,
     },
 )
@@ -44,11 +44,18 @@ def verify_totp_setup(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     data = serializer.validated_data
-    ok, error = complete_totp_setup(request.user, data["secret"], data["totp_token"])
+    ok, error, backup_codes = complete_totp_setup(request.user, data["secret"], data["totp_token"])
     if not ok:
         code = status.HTTP_401_UNAUTHORIZED if error == "Invalid TOTP token" else status.HTTP_400_BAD_REQUEST
         if error == "Failed to complete TOTP setup":
             code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return Response(ErrorResponseSerializer({"error": error}).data, status=code)
 
-    return Response(MessageResponseSerializer({"message": "TOTP setup verified successfully"}).data)
+    return Response(
+        TwoFactorSetupCompleteResponseSerializer(
+            {
+                "message": "TOTP setup verified successfully",
+                "backup_codes": backup_codes,
+            }
+        ).data
+    )

@@ -276,7 +276,7 @@ Detailed authentication and 2FA workflows: **[lokdown/docs/AUTHENTICATION.md](lo
 {
     "secret": "JBSWY3DPEHPK3PXP",
     "qr_code": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
-    "backup_codes": ["ABC123DEF4", "GHI567JKL8", "MNO901PQR2", ...]
+    "provisioning_uri": "otpauth://totp/..."
 }
 ```
 
@@ -287,9 +287,20 @@ Detailed authentication and 2FA workflows: **[lokdown/docs/AUTHENTICATION.md](lo
 **Request:**
 ```json
 {
-    "token": "123456"
+    "totp_token": "123456",
+    "secret": "JBSWY3DPEHPK3PXP"
 }
 ```
+
+**Response:**
+```json
+{
+    "message": "TOTP setup verified successfully",
+    "backup_codes": ["ABC123DEF4", "GHI567JKL8", "MNO901PQR2"]
+}
+```
+
+Save `backup_codes` immediately; they are shown once and replace any previous backup codes.
 
 #### 3. Setup WebAuthn Passkey
 **Endpoint:** `POST /api/auth/2fa/passkey/setup`
@@ -323,12 +334,29 @@ Detailed authentication and 2FA workflows: **[lokdown/docs/AUTHENTICATION.md](lo
 **Request:**
 ```json
 {
-    "credential_id": "base64_encoded_credential_id",
-    "authenticator_data": "base64_encoded_data",
-    "client_data_json": "base64_encoded_data",
-    "signature": "base64_encoded_signature"
+    "session_id": "<uuid from setup>",
+    "passkey_response": {
+        "id": "...",
+        "rawId": "...",
+        "type": "public-key",
+        "response": {
+            "authenticatorData": "...",
+            "clientDataJSON": "...",
+            "attestationObject": "..."
+        }
+    }
 }
 ```
+
+**Response:**
+```json
+{
+    "message": "Passkey setup verified successfully",
+    "backup_codes": ["ABC123DEF4", "GHI567JKL8"]
+}
+```
+
+`backup_codes` is populated when new codes were generated (passkey-only enrollment). It is empty if the user already had backup codes (e.g. from TOTP).
 
 ### 2FA Management
 

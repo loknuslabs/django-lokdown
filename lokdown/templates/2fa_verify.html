@@ -261,40 +261,90 @@ function selectMethod(method) {
     }
 }
 
+function getPasskeyCsrfToken() {
+    const input = document.querySelector('#passkey-form [name=csrfmiddlewaretoken]')
+        || document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!input) {
+        throw new Error('CSRF token not found');
+    }
+    return input.value;
+}
+
+function showPasskeyError(message) {
+    const loading = document.querySelector('#passkey-content .loading');
+    if (loading) {
+        loading.style.display = 'none';
+    }
+    alert(message);
+}
+
+function canonicalRpId() {
+    const host = window.location.hostname;
+    // [::1] in the address bar must use rpId "localhost" (browser rule).
+    if (host === '[::1]') {
+        return 'localhost';
+    }
+    return host;
+}
+
 async function authenticateWithPasskey() {
     try {
-        // Get authentication options from server
+        const pageRpId = canonicalRpId();
         const response = await fetch('{% url "lokdown:admin_2fa_auth_options" %}', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
+                'X-CSRFToken': getPasskeyCsrfToken(),
+                'X-Lokdown-Rp-Id': pageRpId,
+            },
         });
-        
+
         const options = await response.json();
-        
-        // Convert base64 challenge to ArrayBuffer
+        if (!response.ok) {
+            throw new Error(options.error || 'Failed to start passkey authentication');
+        }
+        if (!options.challenge) {
+            throw new Error('Server did not return a WebAuthn challenge');
+        }
+        if (!options.allow_credentials || options.allow_credentials.length === 0) {
+            throw new Error(
+                'No passkey registered for this site (' + pageRpId + '). ' +
+                'Re-enroll your passkey while using http://' + pageRpId + ':8000 in the address bar.'
+            );
+        }
+
         const challenge = base64ToArrayBuffer(options.challenge);
+        const rpId = options.rp_id || pageRpId;
+
+        const publicKey = {
+            challenge: challenge,
+            rpId: rpId,
+            userVerification: 'required',
+            timeout: options.timeout || 60000,
+        };
+        if (options.allow_credentials && options.allow_credentials.length > 0) {
+            publicKey.allowCredentials = options.allow_credentials.map(function (cred) {
+                const descriptor = {
+                    id: base64urlToArrayBuffer(cred.id),
+                    type: cred.type || 'public-key',
+                };
+                if (cred.transports && cred.transports.length > 0) {
+                    descriptor.transports = cred.transports;
+                }
+                return descriptor;
+            });
+        }
+        const credential = await navigator.credentials.get({ publicKey: publicKey });
         
-        // Get credentials
-        const credential = await navigator.credentials.get({
-            publicKey: {
-                challenge: challenge,
-                rpId: options.rp_id,
-                userVerification: 'required',
-                timeout: 60000
-            }
-        });
-        
-        // Convert credential to base64
+        // Base64url avoids +/ corruption when the hidden field is form-POSTed
         const responseData = {
             id: credential.id,
-            rawId: arrayBufferToBase64(credential.rawId),
+            rawId: arrayBufferToBase64url(credential.rawId),
             response: {
-                authenticatorData: arrayBufferToBase64(credential.response.authenticatorData),
-                clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
-                signature: arrayBufferToBase64(credential.response.signature)
+                authenticatorData: arrayBufferToBase64url(credential.response.authenticatorData),
+                clientDataJSON: arrayBufferToBase64url(credential.response.clientDataJSON),
+                signature: arrayBufferToBase64url(credential.response.signature)
             },
             type: credential.type
         };
@@ -305,7 +355,12 @@ async function authenticateWithPasskey() {
         
     } catch (error) {
         console.error('Passkey authentication failed:', error);
-        alert('Passkey authentication failed. Please try another method.');
+        let message = 'Passkey authentication failed. Please try another method.';
+        if (error && error.message) {
+            message += ' (' + error.message + ')';
+        }
+        message += ' WEBAUTHN_ORIGINS controls server verification only; the browser requires rpId to match the page host (use http://localhost:8000 consistently).';
+        showPasskeyError(message);
     }
 }
 
@@ -325,6 +380,22 @@ function arrayBufferToBase64(buffer) {
         binary += String.fromCharCode(bytes[i]);
     }
     return window.btoa(binary);
+}
+
+function arrayBufferToBase64url(buffer) {
+    return arrayBufferToBase64(buffer)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+}
+
+function base64urlToArrayBuffer(base64url) {
+    let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = base64.length % 4;
+    if (pad) {
+        base64 += '='.repeat(4 - pad);
+    }
+    return base64ToArrayBuffer(base64);
 }
 </script>
 {% endblock %} 

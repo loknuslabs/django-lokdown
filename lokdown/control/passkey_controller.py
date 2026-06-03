@@ -23,6 +23,7 @@ from lokdown.serializers import (
     PasskeySetupRequestSerializer,
     PasskeySetupResponseSerializer,
     PasskeyVerifySetupRequestSerializer,
+    TwoFactorSetupCompleteResponseSerializer,
 )
 
 
@@ -46,7 +47,7 @@ def setup_passkey(request):
     tags=["2FA Passkey"],
     request=PasskeyVerifySetupRequestSerializer,
     responses={
-        200: MessageResponseSerializer,
+        200: TwoFactorSetupCompleteResponseSerializer,
         401: ErrorResponseSerializer,
     },
 )
@@ -59,14 +60,22 @@ def verify_passkey_setup(request):
 
     data = serializer.validated_data
     try:
-        ok, error = complete_passkey_registration(
+        ok, error, backup_codes = complete_passkey_registration(
             request.user,
             data["session_id"],
             data["passkey_response"],
+            request=request,
         )
         if not ok:
             return Response(ErrorResponseSerializer({"error": error}).data, status=status.HTTP_401_UNAUTHORIZED)
-        return Response(MessageResponseSerializer({"message": "Passkey setup verified successfully"}).data)
+        return Response(
+            TwoFactorSetupCompleteResponseSerializer(
+                {
+                    "message": "Passkey setup verified successfully",
+                    "backup_codes": backup_codes,
+                }
+            ).data
+        )
     except Exception as e:
         error_msg = handle_2fa_error(e, request.user, "Passkey setup")
         return Response(ErrorResponseSerializer({"error": error_msg}).data, status=status.HTTP_401_UNAUTHORIZED)
@@ -144,15 +153,17 @@ def remove_passkey_credential(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def admin_2fa_auth_options(request):
-    session_id = request.session.get("admin_2fa_session_id")
-    session, _error = validate_session_data(session_id)
+    from lokdown.helpers.request_auth_helper import get_admin_pending_session_key
+
+    session_id = request.session.get(get_admin_pending_session_key())
+    session, _error = validate_session_data(session_id, request)
     if not session:
         return Response(
             ErrorResponseSerializer({"error": "No active session"}).data,
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    payload = admin_passkey_auth_options_payload(session)
+    payload = admin_passkey_auth_options_payload(session, request)
     if isinstance(payload, Response):
         return payload
     return Response(AdminPasskeyAuthOptionsResponseSerializer(payload).data)

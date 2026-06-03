@@ -66,9 +66,13 @@ INSTALLED_APPS = [
 ]
 
 # WebAuthn (required for passkeys)
-WEBAUTHN_RP_ID = "localhost"          # registrable domain, no scheme/port
+WEBAUTHN_RP_ID = "localhost"          # fallback rpId; admin/API use request hostname when available
 WEBAUTHN_RP_NAME = "My Application"
-WEBAUTHN_ORIGIN = "http://localhost:8000"  # full origin with scheme
+WEBAUTHN_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+WEBAUTHN_ORIGIN = "http://localhost:8000"  # optional; first origin if ORIGINS unset
 
 # 2FA behaviour
 TWOFA_SESSION_TIMEOUT = 10            # minutes, pending LoginSession lifetime
@@ -323,7 +327,16 @@ Content-Type: application/json
 }
 ```
 
-On success, lokdown saves the secret and generates backup codes.
+**200 response**
+
+```json
+{
+  "message": "TOTP setup verified successfully",
+  "backup_codes": ["ABCD1234EF", "GHI5678JKL0"]
+}
+```
+
+On success, lokdown saves the secret and generates a **new** set of backup codes. Save them immediately; they are not returned again via the API.
 
 ### Enroll passkey
 
@@ -358,7 +371,16 @@ Content-Type: application/json
 }
 ```
 
-The credential is saved after verification. Backup codes are created automatically if the user has none.
+**200 response**
+
+```json
+{
+  "message": "Passkey setup verified successfully",
+  "backup_codes": ["ABCD1234EF", "GHI5678JKL0"]
+}
+```
+
+The credential is saved after verification. A fresh set of backup codes is generated and returned in the response (same as TOTP setup). Store them immediately; they are not returned again via the API.
 
 ### Manage passkeys
 
