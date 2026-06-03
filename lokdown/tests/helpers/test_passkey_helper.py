@@ -73,7 +73,6 @@ class TestPasskeyHelper:
         assert result is not None
         mock_gen.assert_called_once()
 
-
     def test_repair_base64_form_value_fixes_plus_to_space(self):
         from lokdown.helpers.passkey_helper import repair_base64_form_value
 

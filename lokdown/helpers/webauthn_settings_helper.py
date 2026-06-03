@@ -66,7 +66,6 @@ def normalize_dev_rp_id(host: str | None) -> str | None:
     if not host:
         return None
     host = host.strip().lower().split(":")[0]
-    configured = getattr(settings, "WEBAUTHN_RP_ID", "localhost")
     if host in _DEV_RP_ID_CANONICAL:
         return _DEV_RP_ID_CANONICAL[host]
     return host

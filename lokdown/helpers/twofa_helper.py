@@ -62,8 +62,7 @@ def serialize_credential_descriptor(descriptor: PublicKeyCredentialDescriptor) -
     }
     if descriptor.transports:
         result["transports"] = [
-            transport.value if hasattr(transport, "value") else transport
-            for transport in descriptor.transports
+            transport.value if hasattr(transport, "value") else transport for transport in descriptor.transports
         ]
     return result
 
@@ -131,9 +130,7 @@ def serialize_webauthn_options(options, visited=None):
                 # Special handling for attestation
                 result[camel_key] = value.value
             elif key in ("allow_credentials", "exclude_credentials"):
-                result[camel_key] = [
-                    serialize_credential_descriptor(desc) for desc in (value or [])
-                ]
+                result[camel_key] = [serialize_credential_descriptor(desc) for desc in (value or [])]
             elif hasattr(value, "value"):  # Handle enum-like objects
                 result[camel_key] = value.value
             else:

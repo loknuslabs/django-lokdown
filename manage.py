@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Convenience entrypoint that runs the example project manage.py."""
+
 import os
 import sys
 from pathlib import Path

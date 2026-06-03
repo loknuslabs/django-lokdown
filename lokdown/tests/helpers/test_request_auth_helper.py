@@ -4,12 +4,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from lokdown.helpers.request_auth_helper import (
     clear_admin_pending_session_id,
     extract_pending_session_id,
-    resolve_pending_login_session,
     resolve_pending_session_id,
     store_admin_pending_session_id,
 )
