@@ -1,227 +1,158 @@
-import base64
-from django.utils import timezone
-from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from django.contrib.auth.models import User
-import logging
 
-from lokdown.helpers.backup_codes_helper import user_backup_codes_exist
-from lokdown.helpers.passkey_helper import (
-    generate_passkey_options,
-    create_login_session_for_passkey,
-    verify_passkey_registration,
-    setup_passkey_backup_codes,
-    has_passkey_enabled,
-    custom_generate_authentication_options,
+from lokdown.helpers.auth_flow_helper import (
+    admin_passkey_auth_options_payload,
+    begin_passkey_authentication,
+    begin_passkey_registration,
+    complete_passkey_registration,
+    validate_login_session,
+    validate_session_data,
 )
-from lokdown.helpers.twofa_helper import serialize_webauthn_options, handle_2fa_error
-from lokdown.models import LoginSession, PasskeyCredential
+from lokdown.helpers.twofa_helper import handle_2fa_error
 from lokdown.serializers import (
-    PasskeySetupSerializer,
-    PasskeyVerifySerializer,
-    PasskeyCredentialSerializer,
+    AdminPasskeyAuthOptionsResponseSerializer,
+    ErrorResponseSerializer,
+    MessageResponseSerializer,
     PasskeyAuthOptionsRequestSerializer,
     PasskeyAuthOptionsResponseSerializer,
+    PasskeyCredentialSerializer,
+    PasskeySetupRequestSerializer,
+    PasskeySetupResponseSerializer,
+    PasskeyVerifySetupRequestSerializer,
 )
-
-logger = logging.getLogger(__name__)
 
 
 @extend_schema(
-    summary="Setup passkey for user",
-    description="Generate passkey registration options",
+    summary="Setup passkey for authenticated user",
     tags=["2FA Passkey"],
-    request=PasskeySetupSerializer,
-    responses={
-        200: OpenApiResponse(description="Passkey setup options generated"),
-        400: OpenApiResponse(description="Invalid user ID"),
-    },
+    request=PasskeySetupRequestSerializer,
+    responses={200: PasskeySetupResponseSerializer},
 )
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def setup_passkey(request):
-    """Setup passkey for user"""
-    serializer = PasskeySetupSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    user_id = serializer.validated_data["user_id"]
-    try:
-        user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Generate passkey options
-    options = generate_passkey_options(user)
-    if not options:
-        return Response(
-            {"error": "Failed to generate passkey options"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-    # todo not sure if this is needed
-    # Create login session for passkey setup
-    session_id = create_login_session_for_passkey(user, options.challenge, request)
-    if not session_id:
-        return Response(
-            {"error": "Failed to create login session"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-    # Serialize options
-    serialized_options = serialize_webauthn_options(options)
-
-    return Response({"session_id": session_id, "options": serialized_options})
+    result = begin_passkey_registration(request.user, request)
+    if isinstance(result, Response):
+        return result
+    return Response(PasskeySetupResponseSerializer(result).data)
 
 
 @extend_schema(
     summary="Verify passkey setup",
-    description="Verify passkey registration response",
     tags=["2FA Passkey"],
-    request=PasskeyVerifySerializer,
+    request=PasskeyVerifySetupRequestSerializer,
     responses={
-        200: OpenApiResponse(description="Passkey setup verified successfully"),
-        401: OpenApiResponse(description="Invalid passkey response"),
+        200: MessageResponseSerializer,
+        401: ErrorResponseSerializer,
     },
 )
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def verify_passkey_setup(request):
-    """Verify passkey setup"""
-    serializer = PasskeyVerifySerializer(data=request.data)
+    serializer = PasskeyVerifySetupRequestSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    user = request.user
-    passkey_response = serializer.validated_data.get("passkey_response")
-
+    data = serializer.validated_data
     try:
-        # Get the session for challenge verification
-        session = user.login_sessions.last()
-        if not session or not session.challenge:
-            return Response({"error": "No valid session found"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Verify the passkey registration response
-        verification = verify_passkey_registration(passkey_response, session.challenge)
-        if not verification:
-            return Response(
-                {"error": "Invalid passkey response"},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        # check if backup codes exist already, and if not we will create them
-        backup_codes_exist = user_backup_codes_exist(user)
-        if not backup_codes_exist:
-            setup_passkey_backup_codes(user, verification)
-
-        return Response({"message": "Passkey setup verified successfully"})
+        ok, error = complete_passkey_registration(
+            request.user,
+            data["session_id"],
+            data["passkey_response"],
+        )
+        if not ok:
+            return Response(ErrorResponseSerializer({"error": error}).data, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(MessageResponseSerializer({"message": "Passkey setup verified successfully"}).data)
     except Exception as e:
-        error_msg = handle_2fa_error(e, user, "Passkey setup")
-        return Response({"error": error_msg}, status=status.HTTP_401_UNAUTHORIZED)
+        error_msg = handle_2fa_error(e, request.user, "Passkey setup")
+        return Response(ErrorResponseSerializer({"error": error_msg}).data, status=status.HTTP_401_UNAUTHORIZED)
 
 
 @extend_schema(
-    summary="Get passkey authentication options",
-    description="Generate passkey authentication options for login",
+    summary="Get passkey authentication options for login",
     tags=["2FA Passkey"],
     request=PasskeyAuthOptionsRequestSerializer,
-    responses={
-        200: PasskeyAuthOptionsResponseSerializer,
-        400: OpenApiResponse(description="Invalid session"),
-        500: OpenApiResponse(description="Failed to generate options"),
-    },
+    responses={200: PasskeyAuthOptionsResponseSerializer},
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def get_passkey_auth_options(request):
-    """Generate passkey authentication options for login"""
-    session_id = request.data.get("session_id")
+    serializer = PasskeyAuthOptionsRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    # Validate session
-    try:
-        session = LoginSession.objects.get(session_id=session_id, expires_at__gt=timezone.now())
-    except LoginSession.DoesNotExist:
-        return Response({"error": "Invalid or expired session"}, status=status.HTTP_400_BAD_REQUEST)
+    session = validate_login_session(serializer.validated_data["session_id"])
+    if isinstance(session, Response):
+        return session
 
-    # Check if user has passkey enabled
-    if not has_passkey_enabled(session.user):
-        return Response(
-            {"error": "User does not have passkey enabled"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # Generate authentication options
-    options = custom_generate_authentication_options()
-    if not options:
-        return Response(
-            {"error": "Failed to generate authentication options"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-    # Store challenge in session
-    challenge_base64 = base64.b64encode(options.challenge).decode("utf-8")
-    session.challenge = challenge_base64
-    session.save()
-
-    # Serialize options for frontend
-    serialized_options = serialize_webauthn_options(options)
-
-    return Response(
-        {
-            "challenge": challenge_base64,
-            "rp_id": options.rp_id,
-            "timeout": options.timeout,
-            "options": serialized_options,
-        }
-    )
+    result = begin_passkey_authentication(session)
+    if isinstance(result, Response):
+        return result
+    return Response(PasskeyAuthOptionsResponseSerializer(result).data)
 
 
 @extend_schema(
-    summary="Get passkey credentials",
-    description="Get all passkey credentials for user",
+    summary="List passkey credentials",
     tags=["2FA Passkey"],
-    responses={
-        200: PasskeyCredentialSerializer(many=True),
-    },
+    responses={200: PasskeyCredentialSerializer(many=True)},
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_passkey_credentials(request):
-    """Get passkey credentials for user"""
     credentials = request.user.passkey_credentials.all()
-    serializer = PasskeyCredentialSerializer(credentials, many=True)
-    return Response(serializer.data)
+    return Response(PasskeyCredentialSerializer(credentials, many=True).data)
 
 
 @extend_schema(
     summary="Remove passkey credential",
-    description="Remove specific passkey credential",
     tags=["2FA Passkey"],
-    parameters=[
-        OpenApiParameter(name="credential_id", type=str, location="query"),
-    ],
-    responses={
-        200: OpenApiResponse(description="Passkey credential removed"),
-        400: OpenApiResponse(description="Credential not found"),
-    },
+    parameters=[OpenApiParameter(name="credential_id", type=str, location="query", required=True)],
+    responses={200: MessageResponseSerializer},
 )
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def remove_passkey_credential(request):
-    """Remove passkey credential"""
     credential_id = request.GET.get("credential_id")
     if not credential_id:
         return Response(
-            {"error": "credential_id parameter required"},
+            ErrorResponseSerializer({"error": "credential_id parameter required"}).data,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    deleted, _ = request.user.passkey_credentials.filter(credential_id=credential_id).delete()
+    if not deleted:
+        return Response(
+            ErrorResponseSerializer({"error": "Credential not found"}).data,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return Response(MessageResponseSerializer({"message": "Passkey credential removed"}).data)
+
+
+@extend_schema(
+    summary="Admin passkey authentication options",
+    description="Generate passkey challenge for admin 2FA verify page (uses Django session cookie).",
+    tags=["2FA Passkey"],
+    request=None,
+    responses={
+        200: AdminPasskeyAuthOptionsResponseSerializer,
+        400: OpenApiResponse(description="No active session"),
+    },
+)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def admin_2fa_auth_options(request):
+    session_id = request.session.get("admin_2fa_session_id")
+    session, _error = validate_session_data(session_id)
+    if not session:
+        return Response(
+            ErrorResponseSerializer({"error": "No active session"}).data,
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    try:
-        credential = request.user.passkey_credentials.get(credential_id=credential_id)
-        credential.delete()
-        return Response({"message": "Passkey credential removed"})
-    except PasskeyCredential.DoesNotExist:
-        return Response({"error": "Credential not found"}, status=status.HTTP_400_BAD_REQUEST)
+    payload = admin_passkey_auth_options_payload(session)
+    if isinstance(payload, Response):
+        return payload
+    return Response(AdminPasskeyAuthOptionsResponseSerializer(payload).data)
