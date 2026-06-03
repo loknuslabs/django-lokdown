@@ -26,11 +26,8 @@ jobs:
         black --check lokdown example
         flake8 lokdown example
 
-    - name: Check example project
-      run: python manage.py check
-
     - name: Check deploy settings
       run: python manage.py check --deploy
 
-#    - name: Run tests
-#      run: pytest
+    - name: Run tests
+      run: pytest
