@@ -37,7 +37,7 @@ The Django Lokdown 2FA system supports two primary second-factor methods:
 1. **TOTP (Time-based One-Time Password)** - Compatible with authenticator apps like Google Authenticator, Authy, etc.
 2. **WebAuthn Passkeys** - Modern passwordless authentication using WebAuthn standard, compatible with:
 
-Optional **social login** (django-allauth) can be added as a first-factor sign-in path alongside the JWT/password APIs.
+Optional **social login** (django-allauth) can be added as a first-factor sign-in path alongside the JWT/password APIs. Documented OAuth routes live under `/api/auth/oauth/*` in OpenAPI (`api_schema.json` in the example project).
    - YubiKeys and other hardware security keys
    - Apple Keychain (iOS/macOS)
    - Google Password Manager
@@ -191,6 +191,16 @@ request.session['regenerated_backup_codes_count'] = updated
 ## API Endpoints
 
 Detailed authentication and 2FA workflows: **[lokdown/docs/AUTHENTICATION.md](lokdown/docs/AUTHENTICATION.md)**.
+
+OpenAPI/Swagger (example project: [example/api_schema.json](example/api_schema.json)) documents lokdown **DRF** routes under `/api/`. OAuth browser redirects under `/accounts/` are not in the schema; use the **OAuth** tag helpers instead:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/auth/oauth/providers` | List providers + `login_url` |
+| GET | `/api/auth/oauth/{provider}/login` | Single provider OAuth start URL |
+| GET | `/api/auth/oauth/callback` | Session cookie → JWT or pre-2FA `session_id` |
+
+See [OpenAPI / Swagger](lokdown/docs/AUTHENTICATION.md#openapi--swagger-api_schemajson) and [OAuth workflow](lokdown/docs/AUTHENTICATION.md#api-workflow-login-with-external-provider-oauth).
 
 ### Authentication Flow
 

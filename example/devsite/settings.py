@@ -23,6 +23,21 @@ CSRF_COOKIE_DOMAIN = os.getenv("DJANGO_CSRF_COOKIE_DOMAIN", "")
 
 ADMINS = [("admin", "admin@example.com")]
 
+from lokdown.socialauth.settings_helper import (  # noqa: E402
+    LOKDOWN_ALLAUTH_BASE_APPS,
+    get_allauth_recommended_settings,
+    get_lokdown_socialauth_middleware,
+    get_provider_installed_apps,
+)
+
+from devsite.socialauth_settings import (  # noqa: E402
+    build_enabled_social_providers,
+    build_socialaccount_providers,
+)
+
+_SOCIAL_PROVIDERS = build_socialaccount_providers()
+_SOCIAL_PROVIDER_IDS = build_enabled_social_providers()
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -36,7 +51,22 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
+    *LOKDOWN_ALLAUTH_BASE_APPS,
+    *get_provider_installed_apps(["google", "github"]),
 ]
+
+globals().update(get_allauth_recommended_settings())
+
+SITE_ID = 1
+
+SOCIALACCOUNT_PROVIDERS = _SOCIAL_PROVIDERS
+
+LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS = _SOCIAL_PROVIDER_IDS or None
+LOKDOWN_SOCIALAUTH_CALLBACK_URL_NAME = "auth_callback"
+
+_auto_redirect = os.environ.get("SOCIALACCOUNT_LOGIN_AUTO_REDIRECT_PROVIDER", "").strip()
+if _auto_redirect:
+    SOCIALACCOUNT_LOGIN_AUTO_REDIRECT_PROVIDER = _auto_redirect
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -47,6 +77,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    *get_lokdown_socialauth_middleware(),
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True

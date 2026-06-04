@@ -258,6 +258,126 @@
                 }
             }
         },
+        "/api/auth/oauth/providers": {
+            "get": {
+                "operationId": "auth_oauth_providers_retrieve",
+                "description": "Returns browser login URLs for each provider in `SOCIALACCOUNT_PROVIDERS` / `LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`. Not a substitute for `/accounts/` allauth routes — use `login_url` to start OAuth.",
+                "summary": "List configured OAuth providers",
+                "tags": [
+                    "OAuth"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OAuthProvidersResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "503": {
+                        "description": "allauth not installed or no providers configured"
+                    }
+                }
+            }
+        },
+        "/api/auth/oauth/{provider}/login": {
+            "get": {
+                "operationId": "auth_oauth_login_retrieve",
+                "description": "Returns the absolute URL to open in a browser for Google/GitHub/etc. After OAuth, allauth redirects to `next` (default: `auth_callback`). Then call `GET /api/auth/oauth/callback` with the session cookie to obtain JWTs.",
+                "summary": "OAuth login URL for one provider",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "next",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Post-login redirect path for allauth (default: auth_callback)"
+                    },
+                    {
+                        "in": "path",
+                        "name": "provider",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Provider id (google, github, …)",
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OAuthLoginUrlResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "404": {
+                        "description": "Unknown provider"
+                    },
+                    "503": {
+                        "description": "allauth not installed or provider not configured"
+                    }
+                }
+            }
+        },
+        "/api/auth/oauth/callback": {
+            "get": {
+                "operationId": "auth_oauth_callback_retrieve",
+                "description": "Call after the user finishes OAuth and has a Django session cookie. Same response as `POST /api/auth/login` when 2FA is off, or returns `session_id` for `POST /api/auth/verify` when 2FA is enabled. Browser alternative: `GET /auth/callback` (non-API route).",
+                "summary": "Complete OAuth login (session to JWT)",
+                "tags": [
+                    "OAuth"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OAuthSessionBridgeResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Not authenticated (no OAuth session)"
+                    },
+                    "503": {
+                        "description": "allauth not installed"
+                    },
+                    "500": {
+                        "description": "Failed to create lokdown login session"
+                    }
+                }
+            }
+        },
         "/api/auth/2fa/setup/totp": {
             "post": {
                 "operationId": "auth_2fa_setup_totp_create",
@@ -827,6 +947,90 @@
                 },
                 "required": [
                     "message"
+                ]
+            },
+            "OAuthLoginUrlResponse": {
+                "type": "object",
+                "properties": {
+                    "provider": {
+                        "type": "string"
+                    },
+                    "login_url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Redirect the user's browser to this URL to start OAuth"
+                    },
+                    "next": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "Post-OAuth redirect path passed to allauth (e.g. /auth/callback)"
+                    }
+                },
+                "required": [
+                    "login_url",
+                    "provider"
+                ]
+            },
+            "OAuthProviderEntry": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Provider id (e.g. google, github)"
+                    },
+                    "login_url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Absolute URL to start browser OAuth"
+                    }
+                },
+                "required": [
+                    "id",
+                    "login_url"
+                ]
+            },
+            "OAuthProvidersResponse": {
+                "type": "object",
+                "properties": {
+                    "providers": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OAuthProviderEntry"
+                        }
+                    }
+                },
+                "required": [
+                    "providers"
+                ]
+            },
+            "OAuthSessionBridgeResponse": {
+                "type": "object",
+                "description": "JWT pair or pre-2FA session after OAuth (same shape as password login).",
+                "properties": {
+                    "requires_2fa": {
+                        "type": "boolean"
+                    },
+                    "access_token": {
+                        "type": "string"
+                    },
+                    "refresh_token": {
+                        "type": "string"
+                    },
+                    "session_id": {
+                        "type": "string"
+                    },
+                    "totp_enabled": {
+                        "type": "boolean"
+                    },
+                    "passkey_enabled": {
+                        "type": "boolean"
+                    },
+                    "backup_codes_available": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "requires_2fa"
                 ]
             },
             "PasskeyAuthOptionsRequestRequest": {

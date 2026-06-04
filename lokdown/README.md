@@ -14,7 +14,7 @@ A reusable Django app that provides comprehensive Two-Factor Authentication (2FA
 - **CLI Tools**: Security audit and management commands
 - **Streamlined UX**: One-click 2FA setup and verification flows
 - **Backup Code Management**: Visual display and download functionality for regenerated codes
-- **Social login (django-allauth)**: OAuth providers (Google, GitHub, etc.) with SPA-friendly middleware and email-based usernames
+- **Social login (django-allauth)**: OAuth providers (Google, GitHub, etc.) with SPA-friendly middleware, email-based usernames, and **OpenAPI-documented** `/api/auth/oauth/*` helpers
 
 ## Installation
 
@@ -206,9 +206,12 @@ Quick reference (prefix `/api/` when included as `path("api/", include("lokdown.
 | Area | Paths |
 |------|--------|
 | Login | `auth/login`, `auth/verify`, `auth/token`, `auth/token/verify` |
+| OAuth (OpenAPI tag **OAuth**) | `auth/oauth/providers`, `auth/oauth/<provider>/login`, `auth/oauth/callback` |
 | TOTP setup | `auth/2fa/setup/totp`, `auth/2fa/verify/totp` |
 | Passkey | `auth/2fa/passkey/setup`, `auth/2fa/passkey/verify`, `auth/2fa/passkey/options` |
 | Backup / status | `auth/2fa/verify/backup`, `auth/2fa/status`, `auth/2fa/disable` |
+
+Browser OAuth (`/accounts/google/login/`, etc.) is separate from the table above; see [docs/AUTHENTICATION.md — OpenAPI](docs/AUTHENTICATION.md#openapi--swagger-api_schemajson).
 
 ## Django Admin
 

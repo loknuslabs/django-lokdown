@@ -25,9 +25,28 @@ from lokdown.helpers.totp_helper import (
 )
 from lokdown.helpers.twofa_helper import get_available_2fa_methods, is_2fa_enabled
 
+_MODEL_BACKEND = "django.contrib.auth.backends.ModelBackend"
+
 
 def _admin_2fa_required() -> bool:
     return getattr(settings, "ADMIN_2FA_REQUIRED", False)
+
+
+def _login_staff_user(request, user) -> None:
+    """
+    Log a staff user into the Django admin session.
+
+    When multiple AUTHENTICATION_BACKENDS are configured (e.g. with django-allauth),
+    ``login()`` requires an explicit backend. Admin password/2FA flows use the model backend.
+    """
+    backend = getattr(user, "backend", None)
+    if backend is None:
+        backends = getattr(settings, "AUTHENTICATION_BACKENDS", [_MODEL_BACKEND])
+        if _MODEL_BACKEND in backends:
+            backend = _MODEL_BACKEND
+        else:
+            backend = backends[0]
+    login(request, user, backend=backend)
 
 
 def admin_login_view(request):
@@ -40,7 +59,7 @@ def admin_login_view(request):
         if user is None or not user.is_staff:
             messages.error(request, "Invalid credentials or insufficient permissions.")
         elif not _admin_2fa_required():
-            login(request, user)
+            _login_staff_user(request, user)
             return redirect("admin:index")
         else:
             available_methods = get_available_2fa_methods(user)
@@ -115,7 +134,7 @@ def admin_2fa_verify_view(request):
             request,
         )
         if ok:
-            login(request, user)
+            _login_staff_user(request, user)
             del request.session["admin_2fa_session_id"]
             return redirect("admin:index")
         messages.error(request, error or "Invalid 2FA token.")
