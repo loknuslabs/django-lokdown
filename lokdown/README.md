@@ -14,6 +14,7 @@ A reusable Django app that provides comprehensive Two-Factor Authentication (2FA
 - **CLI Tools**: Security audit and management commands
 - **Streamlined UX**: One-click 2FA setup and verification flows
 - **Backup Code Management**: Visual display and download functionality for regenerated codes
+- **Social login (django-allauth)**: OAuth providers (Google, GitHub, etc.) with SPA-friendly middleware and email-based usernames
 
 ## Installation
 
@@ -50,6 +51,27 @@ urlpatterns = override_admin_urls(urlpatterns)
 ```bash
 python manage.py makemigrations lokdown
 python manage.py migrate
+```
+
+### Optional: Social login (django-allauth)
+
+OAuth is **not** required for lokdown 2FA or JWT APIs. Enable it only when you need Google/GitHub/etc. sign-in.
+
+1. See **[docs/AUTHENTICATION.md — Social login](docs/AUTHENTICATION.md#social-login-django-allauth)** for setup.
+2. See **[Login with external provider](docs/AUTHENTICATION.md#api-workflow-login-with-external-provider-oauth)** for OAuth → JWT → 2FA workflow and `auth_callback` example.
+3. Add allauth apps, `SOCIALACCOUNT_PROVIDERS`, URLs, and middleware from `lokdown.socialauth.settings_helper`.
+4. The local `example/` project does **not** include allauth by default; `manage.py check` works with lokdown only.
+
+Quick imports:
+
+```python
+from lokdown.socialauth.settings_helper import (
+    LOKDOWN_ALLAUTH_BASE_APPS,
+    get_allauth_recommended_settings,
+    get_lokdown_socialauth_middleware,
+    get_provider_installed_apps,
+)
+from lokdown.socialauth.urls import get_allauth_urlpatterns
 ```
 
 ### Complete Setup with Admin 2FA
@@ -370,6 +392,19 @@ SECURITY_APP_CONFIG = {
 }
 ```
 
+## Django system checks
+
+Lokdown registers production warnings when `DEBUG` is False:
+
+| ID | Topic |
+|----|--------|
+| `lokdown.W001` | `ADMIN_2FA_REQUIRED` not set |
+| `lokdown.W002` | `WEBAUTHN_ORIGINS` not configured |
+| `lokdown.W003` | `SITE_ID` missing (social auth only; requires allauth in `INSTALLED_APPS`) |
+| `lokdown.W004` | `SOCIALACCOUNT_ADAPTER` not set to lokdown adapter (same conditions as W003) |
+
+Run `python manage.py check` after configuration changes.
+
 ## Security Considerations
 
 1. **Rate Limiting**: Backup codes have strict rate limiting (10 attempts per minute per IP)
@@ -412,6 +447,7 @@ SECURITY_APP_CONFIG = {
 ## Dependencies
 
 - `django-ratelimit` - For rate limiting
+- `django-allauth[socialaccount]` - Bundled dependency; enable in **your** `INSTALLED_APPS` only if using social OAuth ([docs](docs/AUTHENTICATION.md#social-login-django-allauth))
 - `pyotp` - For TOTP generation
 - `webauthn` - For WebAuthn support
 - `qrcode` - For TOTP QR code generation

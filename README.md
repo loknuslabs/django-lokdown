@@ -10,6 +10,8 @@ pip install django-lokdown
 
 Add to `INSTALLED_APPS`, wire URLs, configure WebAuthn settings, and run migrations. See [lokdown/README.md](lokdown/README.md) for full integration steps.
 
+Optional OAuth (Google, GitHub, etc.) via django-allauth is documented in [lokdown/docs/AUTHENTICATION.md](lokdown/docs/AUTHENTICATION.md#social-login-django-allauth). The full **OAuth → JWT → 2FA** flow is in [Login with external provider](lokdown/docs/AUTHENTICATION.md#api-workflow-login-with-external-provider-oauth). Lokdown works without allauth in `INSTALLED_APPS`; `python manage.py check` does not require it.
+
 ```python
 INSTALLED_APPS = [
     # ...
@@ -31,9 +33,11 @@ Default admin credentials after migrate: `admin` / `password`. See [example/READ
 
 ## Overview
 
-The Django Lokdown 2FA system supports two authentication methods:
+The Django Lokdown 2FA system supports two primary second-factor methods:
 1. **TOTP (Time-based One-Time Password)** - Compatible with authenticator apps like Google Authenticator, Authy, etc.
 2. **WebAuthn Passkeys** - Modern passwordless authentication using WebAuthn standard, compatible with:
+
+Optional **social login** (django-allauth) can be added as a first-factor sign-in path alongside the JWT/password APIs.
    - YubiKeys and other hardware security keys
    - Apple Keychain (iOS/macOS)
    - Google Password Manager
@@ -47,7 +51,8 @@ django-lokdown/
 ├── lokdown/               # Pip package (published to PyPI)
 │   ├── admin.py           # Django admin interface
 │   ├── admin_auth.py      # Admin authentication logic
-│   ├── urls.py                # API routes + override_admin_urls()
+│   ├── socialauth/        # Optional django-allauth helpers (middleware, adapter)
+│   ├── urls.py            # API routes + override_admin_urls()
 │   ├── apps.py            # Django app configuration
 │   ├── models.py          # Database models
 │   ├── serializers.py     # DRF serializers
@@ -743,6 +748,9 @@ The following packages are required (see `requirements.txt`):
 - `qrcode` - For QR code generation
 - `Pillow` - For image processing
 
+#### **Social login (optional in your project)**
+- `django-allauth[socialaccount]` - Installed with django-lokdown; add allauth apps to `INSTALLED_APPS` only when using OAuth ([guide](lokdown/docs/AUTHENTICATION.md#social-login-django-allauth))
+
 #### **Database Dependencies**
 - `mysqlclient` - For MySQL database support (optional)
 - `sqlite3` - Built-in SQLite support
@@ -764,7 +772,7 @@ djangorestframework
 djangorestframework-simplejwt
 django-cors-headers
 drf-spectacular
-django-lokdown  # Add this line
+django-lokdown  # Add this line (includes django-allauth; enable in INSTALLED_APPS only if using OAuth)
 pyotp
 webauthn
 qrcode
@@ -821,7 +829,9 @@ ADMIN_2FA_REQUIRED = True  # Require 2FA for admin users
 python manage.py migrate
 ```
 
-7. **Optional: Customize admin interface (recommended):**
+7. **Optional: Social login** — See [lokdown/docs/AUTHENTICATION.md](lokdown/docs/AUTHENTICATION.md#social-login-django-allauth). Skip this step if you only use password + 2FA JWT.
+
+8. **Optional: Customize admin interface (recommended):**
 ```python
 # In your Django settings
 ADMIN_SITE_HEADER = "Your App Admin"

@@ -195,6 +195,9 @@
                     },
                     "401": {
                         "description": "Invalid credentials"
+                    },
+                    "429": {
+                        "description": "Too many authentication attempts"
                     }
                 }
             }
@@ -250,7 +253,7 @@
                         "description": "Invalid session or missing token"
                     },
                     "429": {
-                        "description": "Too many backup code attempts"
+                        "description": "Too many authentication attempts"
                     }
                 }
             }
