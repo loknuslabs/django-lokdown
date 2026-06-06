@@ -209,7 +209,7 @@ REST_FRAMEWORK = {
 }
 
 # User-tied API keys (additional auth; not a login replacement)
-LOKDOWN_API_KEYS_ENABLED = os.environ.get("LOKDOWN_API_KEYS_ENABLED", "false").lower() == "true"
+LOKDOWN_API_KEYS_ENABLED = os.environ.get("LOKDOWN_API_KEYS_ENABLED", "true").lower() == "true"
 LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS = int(os.environ.get("LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS", "365"))
 LOKDOWN_API_KEY_ALLOW_INDEFINITE = os.environ.get("LOKDOWN_API_KEY_ALLOW_INDEFINITE", "true").lower() == "true"
 
