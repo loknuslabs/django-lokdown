@@ -55,7 +55,7 @@ jobs:
               ;;
           esac
           case "$(basename "$sdist")" in
-            django-lokdown-*) ;;
+            django_lokdown-*) ;;
             *)
               echo "Unexpected sdist name: $sdist"
               exit 1
