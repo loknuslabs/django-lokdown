@@ -80,6 +80,28 @@ class LoginSession(models.Model):
         verbose_name_plural = "Login Sessions"
 
 
+class UserApiKey(models.Model):
+    """User-tied API key metadata. The raw key is hashed and never stored in plaintext."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="api_keys")
+    name = models.CharField(max_length=255, blank=True)
+    prefix = models.CharField(max_length=64, unique=True, db_index=True)
+    key_hash = models.CharField(max_length=128)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        label = self.name or self.prefix
+        return f"API key {label} for {self.user.username}"
+
+    class Meta:
+        verbose_name = "User API Key"
+        verbose_name_plural = "User API Keys"
+        ordering = ["-created_at"]
+
+
 class FailedBackupCodeAttempt(models.Model):
     """Model to track failed backup code attempts for lokdown monitoring"""
 

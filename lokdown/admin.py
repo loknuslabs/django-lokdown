@@ -16,6 +16,7 @@ from lokdown.models import (
     FailedBackupCodeAttempt,
     LoginSession,
     PasskeyCredential,
+    UserApiKey,
     UserTimeBasedOneTimePasswords,
 )
 
@@ -307,3 +308,52 @@ class FailedBackupCodeAttemptAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
+
+
+@admin.register(UserApiKey)
+class UserApiKeyAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "name",
+        "prefix",
+        "is_active_display",
+        "created_at",
+        "last_used_at",
+        "expires_at",
+        "revoked_at",
+    )
+    list_filter = ("created_at", "last_used_at", "expires_at", "revoked_at")
+    search_fields = ("user__username", "user__email", "name", "prefix")
+    readonly_fields = (
+        "user",
+        "name",
+        "prefix",
+        "key_hash",
+        "created_at",
+        "last_used_at",
+        "expires_at",
+        "revoked_at",
+    )
+    actions = ["revoke_selected_keys"]
+
+    @admin.display(boolean=True, description="Active")
+    def is_active_display(self, obj):
+        if obj.revoked_at is not None:
+            return False
+        if obj.expires_at is not None and obj.expires_at < timezone.now():
+            return False
+        return True
+
+    @admin.action(description="Revoke selected API keys")
+    def revoke_selected_keys(self, request, queryset):
+        updated = queryset.filter(revoked_at__isnull=True).update(revoked_at=timezone.now())
+        self.message_user(request, f"Revoked {updated} API key(s).")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("user")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

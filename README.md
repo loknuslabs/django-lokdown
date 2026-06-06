@@ -1,6 +1,6 @@
 # Django Lokdown
 
-A reusable Django package for Two-Factor Authentication (TOTP, WebAuthn passkeys), JWT APIs, admin 2FA, and optional social login (OAuth).
+A reusable Django package for Two-Factor Authentication (TOTP, WebAuthn passkeys), JWT APIs, optional user API keys, admin 2FA, and optional social login (OAuth).
 
 **Full documentation:** [lokdown/README.md](lokdown/README.md)
 

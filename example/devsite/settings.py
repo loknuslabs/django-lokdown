@@ -202,8 +202,16 @@ REST_FRAMEWORK = {
         "anon": "100/hour",
         "user": "1000/hour",
     },
-    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "lokdown.authentication.LokdownApiKeyAuthentication",
+    ],
 }
+
+# User-tied API keys (additional auth; not a login replacement)
+LOKDOWN_API_KEYS_ENABLED = os.environ.get("LOKDOWN_API_KEYS_ENABLED", "true").lower() == "true"
+LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS = int(os.environ.get("LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS", "365"))
+LOKDOWN_API_KEY_ALLOW_INDEFINITE = os.environ.get("LOKDOWN_API_KEY_ALLOW_INDEFINITE", "true").lower() == "true"
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
