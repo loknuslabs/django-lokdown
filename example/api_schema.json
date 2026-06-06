@@ -261,8 +261,26 @@
         "/api/auth/oauth/providers": {
             "get": {
                 "operationId": "auth_oauth_providers_retrieve",
-                "description": "Returns browser login URLs for each provider in `SOCIALACCOUNT_PROVIDERS` / `LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`. Not a substitute for `/accounts/` allauth routes — use `login_url` to start OAuth.",
+                "description": "Returns headless redirect metadata for each provider configured via Django admin Social applications (or `SOCIALACCOUNT_PROVIDERS`). Prefer `GET /_allauth/browser/v1/config` for dynamic provider discovery; this endpoint pre-fills `callback_url` for lokdown's JWT bridge. `callback_url` must pass allauth `is_safe_url` and, when set, `LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS`. SPA flow: POST a form to `redirect_url` with `provider`, `callback_url`, `process=login`, and `csrfmiddlewaretoken`, then call `POST /api/auth/oauth/callback` with session cookie and CSRF header.",
                 "summary": "List configured OAuth providers",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "callback_url",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Post-OAuth redirect URL for allauth headless. Use your SPA callback route (absolute URL). Defaults to project `auth_callback` when omitted."
+                    },
+                    {
+                        "in": "query",
+                        "name": "next",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Alias for `callback_url` (legacy query param)."
+                    }
+                ],
                 "tags": [
                     "OAuth"
                 ],
@@ -283,6 +301,9 @@
                         },
                         "description": ""
                     },
+                    "400": {
+                        "description": "Invalid or disallowed callback_url"
+                    },
                     "503": {
                         "description": "allauth not installed or no providers configured"
                     }
@@ -292,16 +313,24 @@
         "/api/auth/oauth/{provider}/login": {
             "get": {
                 "operationId": "auth_oauth_login_retrieve",
-                "description": "Returns the absolute URL to open in a browser for Google/GitHub/etc. After OAuth, allauth redirects to `next` (default: `auth_callback`). Then call `GET /api/auth/oauth/callback` with the session cookie to obtain JWTs.",
-                "summary": "OAuth login URL for one provider",
+                "description": "Returns headless redirect metadata to start browser OAuth for Google/GitHub/etc. POST a form to `redirect_url` with `provider`, `callback_url`, `process=login`, and `csrfmiddlewaretoken` (synchronous form submit, not XHR). `callback_url` must pass allauth `is_safe_url` and, when set, `LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS`. After OAuth completes, call `POST /api/auth/oauth/callback` from your SPA with session cookie and `X-CSRFToken` to receive JWTs or a pre-2FA `session_id`.",
+                "summary": "OAuth redirect metadata for one provider",
                 "parameters": [
+                    {
+                        "in": "query",
+                        "name": "callback_url",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Post-OAuth redirect URL passed to allauth headless. Prefer your SPA callback (absolute URL). Defaults to project `auth_callback` when omitted."
+                    },
                     {
                         "in": "query",
                         "name": "next",
                         "schema": {
                             "type": "string"
                         },
-                        "description": "Post-login redirect path for allauth (default: auth_callback)"
+                        "description": "Alias for `callback_url` (legacy query param)."
                     },
                     {
                         "in": "path",
@@ -327,11 +356,14 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/OAuthLoginUrlResponse"
+                                    "$ref": "#/components/schemas/OAuthProviderRedirect"
                                 }
                             }
                         },
                         "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid or disallowed callback_url"
                     },
                     "404": {
                         "description": "Unknown provider"
@@ -343,16 +375,16 @@
             }
         },
         "/api/auth/oauth/callback": {
-            "get": {
-                "operationId": "auth_oauth_callback_retrieve",
-                "description": "Call after the user finishes OAuth and has a Django session cookie. Same response as `POST /api/auth/login` when 2FA is off, or returns `session_id` for `POST /api/auth/verify` when 2FA is enabled. Browser alternative: `GET /auth/callback` (non-API route).",
+            "post": {
+                "operationId": "auth_oauth_callback_create",
+                "description": "Primary SPA callback endpoint. Call after OAuth when the browser has a Django session cookie (`sessionid` on the API origin). Returns JSON only — same shape as `POST /api/auth/login` when 2FA is off, or `session_id` + flags for `POST /api/auth/verify` when 2FA is enabled. Authenticates via Django **session cookie** (`sessionid`), not Bearer JWT. Requires **POST** with CSRF protection (`X-CSRFToken` header or `csrfmiddlewaretoken` body field). Same-origin SPAs can proxy `/accounts/*` and `/api/*` through Vite (e.g. `http://localhost:5173`) so the cookie is set on one host. Cross-origin SPAs need `fetch(..., { credentials: 'include' })` plus `CSRF_TRUSTED_ORIGINS` / `CORS_ALLOW_CREDENTIALS`.",
                 "summary": "Complete OAuth login (session to JWT)",
                 "tags": [
                     "OAuth"
                 ],
                 "security": [
                     {
-                        "jwtAuth": []
+                        "cookieAuth": []
                     }
                 ],
                 "responses": {
@@ -367,7 +399,10 @@
                         "description": ""
                     },
                     "401": {
-                        "description": "Not authenticated (no OAuth session)"
+                        "description": "Not authenticated (no OAuth session cookie)"
+                    },
+                    "403": {
+                        "description": "CSRF verification failed"
                     },
                     "503": {
                         "description": "allauth not installed"
@@ -949,44 +984,34 @@
                     "message"
                 ]
             },
-            "OAuthLoginUrlResponse": {
+            "OAuthProviderRedirect": {
                 "type": "object",
+                "description": "Headless OAuth start metadata for one provider.\n\nUse :meth:`for_provider` to build a validated instance from the current request.",
                 "properties": {
                     "provider": {
-                        "type": "string"
-                    },
-                    "login_url": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "Redirect the user's browser to this URL to start OAuth"
-                    },
-                    "next": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "Post-OAuth redirect path passed to allauth (e.g. /auth/callback)"
-                    }
-                },
-                "required": [
-                    "login_url",
-                    "provider"
-                ]
-            },
-            "OAuthProviderEntry": {
-                "type": "object",
-                "properties": {
-                    "id": {
                         "type": "string",
                         "description": "Provider id (e.g. google, github)"
                     },
-                    "login_url": {
+                    "redirect_url": {
                         "type": "string",
                         "format": "uri",
-                        "description": "Absolute URL to start browser OAuth"
+                        "description": "POST target for allauth headless browser provider redirect"
+                    },
+                    "callback_url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "SPA route allauth redirects to after OAuth completes. Must pass allauth `is_safe_url` and, when set, ``LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS``."
+                    },
+                    "redirect_method": {
+                        "type": "string",
+                        "description": "HTTP method for redirect_url (always \"POST\" for headless browser flow)"
                     }
                 },
                 "required": [
-                    "id",
-                    "login_url"
+                    "callback_url",
+                    "provider",
+                    "redirect_method",
+                    "redirect_url"
                 ]
             },
             "OAuthProvidersResponse": {
@@ -995,7 +1020,7 @@
                     "providers": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/OAuthProviderEntry"
+                            "$ref": "#/components/schemas/OAuthProviderRedirect"
                         }
                     }
                 },
@@ -1324,6 +1349,11 @@
             }
         },
         "securitySchemes": {
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "sessionid"
+            },
             "jwtAuth": {
                 "type": "http",
                 "scheme": "bearer",

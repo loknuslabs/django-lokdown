@@ -6,6 +6,7 @@ from django.contrib.admin import site as admin_site
 from django.contrib.auth import authenticate, login
 from django.shortcuts import redirect, render
 
+from lokdown.helpers.request_auth_helper import clear_admin_pending_session_id
 from lokdown.helpers.auth_flow_helper import (
     begin_passkey_registration,
     begin_totp_setup,
@@ -134,8 +135,10 @@ def admin_2fa_verify_view(request):
             request,
         )
         if ok:
+            # Clear before login(): Django flushes the session when switching users
+            # (e.g. OAuth user already signed in, then staff completes admin 2FA).
+            clear_admin_pending_session_id(request)
             _login_staff_user(request, user)
-            del request.session["admin_2fa_session_id"]
             return redirect("admin:index")
         messages.error(request, error or "Invalid 2FA token.")
 

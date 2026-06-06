@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
+    "allauth.headless",
     "allauth.socialaccount.providers.dummy",
     "allauth.socialaccount.providers.google",
     "lokdown",
@@ -112,6 +113,13 @@ SIMPLE_JWT = {
 }
 
 LOKDOWN_SOCIALAUTH_CALLBACK_URL_NAME = "auth_callback"
+LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS = [
+    "http://localhost:5173",
+    "http://testserver",
+]
+
+HEADLESS_ONLY = True
+CSRF_TRUSTED_ORIGINS = ["http://testserver", "http://localhost:5173"]
 
 TEMPLATES = [
     {

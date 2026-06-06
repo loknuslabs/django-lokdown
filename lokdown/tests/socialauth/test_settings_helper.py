@@ -1,10 +1,17 @@
 from django.test import override_settings
 
+import pytest
+from django.contrib.sites.models import Site
+
 from lokdown.socialauth.settings_helper import (
     LOKDOWN_ALLAUTH_BASE_APPS,
+    get_admin_social_providers,
     get_allauth_recommended_settings,
     get_auto_redirect_provider,
     get_enabled_social_providers,
+    get_headless_browser_config_path,
+    get_headless_browser_redirect_path,
+    get_headless_frontend_urls,
     get_lokdown_socialauth_middleware,
     get_provider_installed_apps,
     get_social_login_url_name,
@@ -16,6 +23,7 @@ class TestSettingsHelper:
     def test_base_apps_include_sites_and_allauth(self):
         assert "django.contrib.sites" in LOKDOWN_ALLAUTH_BASE_APPS
         assert "allauth.socialaccount" in LOKDOWN_ALLAUTH_BASE_APPS
+        assert "allauth.headless" in LOKDOWN_ALLAUTH_BASE_APPS
 
     def test_get_enabled_social_providers_from_apps_config(self, monkeypatch):
         from django.conf import settings
@@ -32,6 +40,34 @@ class TestSettingsHelper:
     @override_settings(LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS=["dummy", "google"])
     def test_explicit_enabled_providers_override(self):
         assert get_enabled_social_providers() == ["dummy", "google"]
+
+    @pytest.mark.django_db
+    @override_settings(
+        LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS=["google", "github"],
+        SOCIALACCOUNT_PROVIDERS={"github": {"VERIFIED_EMAIL": True}},
+    )
+    def test_explicit_providers_without_settings_apps_use_admin_socialapp(self):
+        assert get_enabled_social_providers() == []
+
+    @pytest.mark.django_db
+    @override_settings(
+        LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS=["google", "github"],
+        SOCIALACCOUNT_PROVIDERS={"github": {"VERIFIED_EMAIL": True}},
+        SITE_ID=1,
+    )
+    def test_explicit_providers_filter_to_admin_socialapp(self):
+        from allauth.socialaccount.models import SocialApp
+
+        site = Site.objects.get(pk=1)
+        app = SocialApp.objects.create(
+            provider="google",
+            name="Google",
+            client_id="admin-google-id",
+            secret="admin-google-secret",
+        )
+        app.sites.add(site)
+        assert get_admin_social_providers() == ["google"]
+        assert get_enabled_social_providers() == ["google"]
 
     def test_get_provider_installed_apps(self):
         apps = get_provider_installed_apps(["google", "dummy"])
@@ -59,6 +95,17 @@ class TestSettingsHelper:
         cfg = get_allauth_recommended_settings()
         assert cfg["SOCIALACCOUNT_ADAPTER"] == "lokdown.socialauth.adapters.CustomSocialAccountAdapter"
         assert "allauth.account.auth_backends.AuthenticationBackend" in cfg["AUTHENTICATION_BACKENDS"]
+        assert cfg["LOGIN_REDIRECT_URL"] == "/"
+        assert cfg["HEADLESS_ONLY"] is True
+
+    def test_headless_paths(self):
+        assert get_headless_browser_redirect_path() == "/_allauth/browser/v1/auth/provider/redirect"
+        assert get_headless_browser_config_path() == "/_allauth/browser/v1/config"
+
+    def test_headless_frontend_urls(self):
+        urls = get_headless_frontend_urls("http://localhost:5173")
+        assert urls["socialaccount_login_error"] == "http://localhost:5173/oauth/callback"
+        assert "{key}" in urls["account_confirm_email"]
 
     def test_middleware_paths(self):
         paths = get_lokdown_socialauth_middleware()

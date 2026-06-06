@@ -33,7 +33,9 @@ from lokdown.serializers.passkey import (
 from lokdown.serializers.socialauth import (
     OAuthLoginUrlResponseSerializer,
     OAuthProviderEntrySerializer,
+    OAuthProviderRedirectSerializer,
     OAuthProvidersResponseSerializer,
+    OAuthSessionBridgeRequestSerializer,
     OAuthSessionBridgeResponseSerializer,
 )
 from lokdown.serializers.totp import (
@@ -73,7 +75,9 @@ __all__ = [
     "MessageResponseSerializer",
     "OAuthLoginUrlResponseSerializer",
     "OAuthProviderEntrySerializer",
+    "OAuthProviderRedirectSerializer",
     "OAuthProvidersResponseSerializer",
+    "OAuthSessionBridgeRequestSerializer",
     "OAuthSessionBridgeResponseSerializer",
     "PasskeyAuthOptionsRequestSerializer",
     "PasskeyAuthOptionsResponseSerializer",

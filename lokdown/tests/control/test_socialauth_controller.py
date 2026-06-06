@@ -1,5 +1,4 @@
 import pytest
-from django.contrib.auth.models import User
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -15,36 +14,67 @@ class TestOAuthApiEndpoints:
     def test_oauth_providers_lists_configured_providers(self, oauth_api_client):
         response = oauth_api_client.get(reverse("lokdown:oauth_providers"))
         assert response.status_code == 200
-        ids = {p["id"] for p in response.data["providers"]}
+        ids = {p["provider"] for p in response.data["providers"]}
         assert "google" in ids
         assert "dummy" in ids
-        assert all(p["login_url"].startswith("http") for p in response.data["providers"])
+        assert all(p["redirect_url"].startswith("http") for p in response.data["providers"])
+        assert all(p["redirect_method"] == "POST" for p in response.data["providers"])
 
-    def test_oauth_providers_respects_next_query(self, oauth_api_client):
+    def test_oauth_providers_respects_callback_url_query(self, oauth_api_client):
+        response = oauth_api_client.get(
+            reverse("lokdown:oauth_providers"),
+            {"callback_url": "http://localhost:5173/custom/callback"},
+        )
+        assert response.status_code == 200
+        assert response.data["providers"][0]["callback_url"] == "http://localhost:5173/custom/callback"
+
+    def test_oauth_providers_accepts_legacy_next_query(self, oauth_api_client):
         response = oauth_api_client.get(
             reverse("lokdown:oauth_providers"),
             {"next": "/custom/callback"},
         )
         assert response.status_code == 200
-        assert "next=%2Fcustom%2Fcallback" in response.data["providers"][0]["login_url"]
+        assert response.data["providers"][0]["callback_url"].endswith("/custom/callback")
+
+    @override_settings(LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS=["http://localhost:5173"])
+    def test_oauth_providers_rejects_disallowed_callback_url(self, oauth_api_client):
+        response = oauth_api_client.get(
+            reverse("lokdown:oauth_providers"),
+            {"callback_url": "https://evil.example/callback"},
+        )
+        assert response.status_code == 400
+        assert "callback_url" in response.data
 
     def test_oauth_provider_login_google(self, oauth_api_client):
         response = oauth_api_client.get(reverse("lokdown:oauth_provider_login", kwargs={"provider": "google"}))
         assert response.status_code == 200
         assert response.data["provider"] == "google"
-        assert "/accounts/google/login/" in response.data["login_url"]
+        assert "/_allauth/browser/v1/auth/provider/redirect" in response.data["redirect_url"]
+        assert response.data["redirect_method"] == "POST"
 
     def test_oauth_provider_login_unknown_returns_404(self, oauth_api_client):
         response = oauth_api_client.get(reverse("lokdown:oauth_provider_login", kwargs={"provider": "notreal"}))
         assert response.status_code == 404
 
     def test_oauth_callback_bridge_requires_auth(self, oauth_api_client):
+        response = oauth_api_client.post(reverse("lokdown:oauth_callback_bridge"))
+        assert response.status_code in (401, 403)
+
+    def test_oauth_callback_bridge_rejects_get(self, oauth_api_client, user):
+        oauth_api_client.force_login(user)
         response = oauth_api_client.get(reverse("lokdown:oauth_callback_bridge"))
-        assert response.status_code == 401
+        assert response.status_code == 405
+
+    def test_oauth_callback_bridge_accepts_django_session_cookie(self, oauth_api_client, user):
+        oauth_api_client.force_login(user)
+        response = oauth_api_client.post(reverse("lokdown:oauth_callback_bridge"))
+        assert response.status_code == 200
+        assert response.data["requires_2fa"] is False
+        assert "access_token" in response.data
 
     def test_oauth_callback_bridge_returns_jwt_without_2fa(self, oauth_api_client, user):
         oauth_api_client.force_authenticate(user=user)
-        response = oauth_api_client.get(reverse("lokdown:oauth_callback_bridge"))
+        response = oauth_api_client.post(reverse("lokdown:oauth_callback_bridge"))
         assert response.status_code == 200
         assert response.data["requires_2fa"] is False
         assert "access_token" in response.data
@@ -52,7 +82,7 @@ class TestOAuthApiEndpoints:
 
     def test_oauth_callback_bridge_returns_session_with_2fa(self, oauth_api_client, user_with_totp):
         oauth_api_client.force_authenticate(user=user_with_totp)
-        response = oauth_api_client.get(reverse("lokdown:oauth_callback_bridge"))
+        response = oauth_api_client.post(reverse("lokdown:oauth_callback_bridge"))
         assert response.status_code == 200
         assert response.data["requires_2fa"] is True
         assert response.data["session_id"]

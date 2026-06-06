@@ -45,10 +45,10 @@ Both call `initiate_password_login()` and `verify_second_factor()` in `auth_flow
 
 | Stack | Step 1 | Step 2 | Step 3 | Step 4 (if 2FA) | Token JSON keys |
 |--------|--------|--------|--------|-----------------|-----------------|
-| **OAuth + REST** | `GET /api/auth/oauth/<provider>/login` → open `login_url` | Browser OAuth (`/accounts/…`) | `GET /api/auth/oauth/callback` (session cookie) | `POST /api/auth/verify` | `access_token`, `refresh_token` |
+| **OAuth + REST** | `GET /_allauth/browser/v1/config` or lokdown metadata → POST headless redirect | Browser OAuth (provider callbacks on `/accounts/…`) | `POST /api/auth/oauth/callback` (session + CSRF) | `POST /api/auth/verify` | `access_token`, `refresh_token` |
 | **OAuth + SimpleJWT** | Same | Same | Same | `POST /api/auth/token/verify` | `access`, `refresh` |
 
-Step 1–3 are documented in OpenAPI under the **OAuth** tag (`example/api_schema.json`). `/accounts/*` allauth routes are browser-only and do not appear in the schema.
+Step 1–3 are documented in OpenAPI under the **OAuth** tag (`example/api_schema.json`). Allauth headless routes (`/_allauth/browser/v1/*`) and provider callbacks (`/accounts/<provider>/login/callback/`) are browser-only and do not appear in the lokdown schema.
 
 OAuth completes with a **Django session** (`request.user`). Lokdown JWTs are issued at step 3 via `bridge_oauth_session_to_lokdown` / `initiate_password_login`. See [Login with external provider](#api-workflow-login-with-external-provider-oauth).
 
@@ -140,15 +140,15 @@ Social login is **optional**. You only need the steps below if you want OAuth in
 
 - `python manage.py check` runs normally (no allauth import during lokdown checks).
 - Lokdown JWT and 2FA APIs work unchanged.
-- The `example/` dev project ships this way by default.
+- Omit allauth entirely if you only need password + JWT APIs.
 
-**With allauth configured:** mount URLs, middleware, and provider credentials as below.
+**With allauth configured:** mount URLs, middleware, and Social applications in Django admin (see [README.md — Social login](../README.md#social-login-oauth)).
 
-Social login establishes a **Django session** via allauth. Your frontend callback route (for example `/auth/callback`) is responsible for exchanging that session for lokdown JWTs if needed.
+Social login establishes a **Django session** via allauth. Your SPA or `GET /api/auth/oauth/callback` (with session cookie) exchanges that session for lokdown JWTs. An optional dev-only HTML route (`/auth/callback`) exists in the example project.
 
 ### Install and apps
 
-`django-allauth[socialaccount]` is installed with `django-lokdown`. You must also add allauth to **`INSTALLED_APPS`** in your project:
+`django-allauth[headless]` is installed with `django-lokdown`. You must also add allauth to **`INSTALLED_APPS`** in your project:
 
 ```python
 from lokdown.socialauth.settings_helper import (
@@ -170,25 +170,34 @@ globals().update(get_allauth_recommended_settings())
 
 SITE_ID = 1
 
-SOCIALACCOUNT_PROVIDERS = {
-    "google": {
-        "APPS": [
-            {
-                "client_id": os.environ["GOOGLE_CLIENT_ID"],
-                "secret": os.environ["GOOGLE_CLIENT_SECRET"],
-            },
-        ],
-    },
-    "github": {
-        "APPS": [
-            {
-                "client_id": os.environ["GITHUB_CLIENT_ID"],
-                "secret": os.environ["GITHUB_CLIENT_SECRET"],
-            },
-        ],
-    },
-}
+LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS = ["google", "github"]
 
+# Provider-specific options only — client id/secret live in admin SocialApp records.
+SOCIALACCOUNT_PROVIDERS = {
+    "github": {"VERIFIED_EMAIL": True},
+}
+```
+
+Alternatively, you may embed credentials in settings with ``APPS``/``APP`` under each provider (useful for tests or twelve-factor deploys). When any provider uses ``APPS``/``APP``, ``LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`` is returned as-is.
+
+### Social application credentials (admin)
+
+For production and the example dev project, configure OAuth apps in Django admin instead of environment variables:
+
+1. Run migrations: ``python manage.py migrate`` (includes ``sites`` and ``socialaccount``).
+2. Open **Admin → Social applications** (`/admin/socialaccount/socialapp/`).
+3. Add a **Social application** per provider (Provider: Google, GitHub, …).
+4. Set **Client id** and **Secret key** from your provider console.
+5. Under **Sites**, select the site matching ``SITE_ID`` (default: ``example.com``).
+
+Lokdown lists only providers that have a linked ``SocialApp`` when no ``APPS``/``APP`` entries exist in ``SOCIALACCOUNT_PROVIDERS``. Register redirect URIs in each provider console, for example:
+
+| Provider | Callback URL |
+|----------|--------------|
+| Google | `https://your-domain/accounts/google/login/callback/` |
+| GitHub | `https://your-domain/accounts/github/login/callback/` |
+
+```python
 MIDDLEWARE = [
     # ...
     *get_lokdown_socialauth_middleware(),
@@ -219,23 +228,27 @@ Middleware and adapter classes use **lazy imports** in `lokdown.socialauth` so p
 ```python
 from django.urls import path, include
 from lokdown.socialauth.urls import get_allauth_urlpatterns
+from lokdown.socialauth.settings_helper import get_headless_frontend_urls
 from lokdown.urls import override_admin_urls
 
 urlpatterns = [
-    *get_allauth_urlpatterns(),  # mounts allauth at /accounts/
+    *get_allauth_urlpatterns(),  # /accounts/ callbacks + /_allauth/ headless API
     path("api/", include("lokdown.urls")),
     path("auth/callback", your_jwt_callback_view, name="auth_callback"),
 ]
 
+HEADLESS_FRONTEND_URLS = get_headless_frontend_urls("https://app.example.com")
+
 urlpatterns = override_admin_urls(urlpatterns)
 ```
 
-Provider login URLs follow allauth conventions, for example:
+With ``HEADLESS_ONLY = True`` (included in ``get_allauth_recommended_settings()``), the SPA starts OAuth via allauth headless — not ``/accounts/<provider>/login/``:
 
-| Provider | Login URL | URL name |
-|----------|-----------|----------|
-| Google | `/accounts/google/login/` | `google_login` |
-| GitHub | `/accounts/github/login/` | `github_login` |
+| Step | Endpoint |
+|------|----------|
+| Discover providers | `GET /_allauth/browser/v1/config` |
+| Start OAuth | `POST /_allauth/browser/v1/auth/provider/redirect` (form submit) |
+| Provider callback | `/accounts/<provider>/login/callback/` (Django only) |
 
 ### Lokdown middleware
 
@@ -250,7 +263,8 @@ Settings:
 |---------|-------------|
 | `SOCIALACCOUNT_LOGIN_AUTO_REDIRECT_PROVIDER` | Provider id for auto-redirect (e.g. `"google"`). |
 | `SOCIALACCOUNT_LOGIN_AUTO_REDIRECT_GOOGLE` | Legacy bool; equivalent to provider `"google"`. |
-| `LOKDOWN_SOCIALAUTH_CALLBACK_URL_NAME` | URL name when `?next=` is absent (default `auth_callback`). |
+| `LOKDOWN_SOCIALAUTH_CALLBACK_URL_NAME` | URL name when `?callback_url=` is absent (default `auth_callback`). |
+| `LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS` | Allowlist of SPA origins (e.g. `http://localhost:5173`). API host origin is always allowed. |
 | `LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS` | Optional explicit list for middleware path matching. |
 | `LOKDOWN_SOCIALAUTH_ACCOUNT_URL_PREFIX` | URL prefix if not `accounts` (default `accounts`). |
 
@@ -261,7 +275,7 @@ Opt out of auto-redirect to see the local login form: `GET /accounts/login/?loca
 Lokdown registers two social-auth checks (`lokdown.W003`, `lokdown.W004`). They run **only when both** are true:
 
 1. `"allauth"` is in `INSTALLED_APPS`
-2. At least one provider is configured (`SOCIALACCOUNT_PROVIDERS` with `APPS`/`APP`, or non-empty `LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`)
+2. At least one provider is configured (`SOCIALACCOUNT_PROVIDERS` with `APPS`/`APP`, non-empty `LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`, or admin `SocialApp` records)
 
 | Check ID | Condition warned |
 |----------|------------------|
@@ -283,9 +297,9 @@ Lokdown registers **DRF** OAuth helpers in [drf-spectacular](https://drf-spectac
 
 | What appears in OpenAPI | What does not |
 |-------------------------|---------------|
-| `GET /api/auth/oauth/providers` | `GET /accounts/google/login/` (allauth HTML/redirect) |
-| `GET /api/auth/oauth/{provider}/login` | `GET /accounts/login/` |
-| `GET /api/auth/oauth/callback` | Other `/accounts/*` routes |
+| `GET /api/auth/oauth/providers` | `GET /_allauth/browser/v1/config` (allauth headless) |
+| `GET /api/auth/oauth/{provider}/login` | `POST /_allauth/browser/v1/auth/provider/redirect` |
+| `POST /api/auth/oauth/callback` (JSON, SPA bridge) | `/accounts/*/login/callback/` and optional HTML `/auth/callback` |
 
 **Regenerate** (from your Django project root, with `drf_spectacular` installed):
 
@@ -336,14 +350,10 @@ sequenceDiagram
     participant CB as auth_callback (your view)
     participant API as lokdown /api/auth/*
 
-    SPA->>Allauth: GET /accounts/google/login/?next=/auth/callback
-    alt User already has Django session
-        Allauth-->>SPA: 302 /auth/callback
-    else OAuth required
-        Allauth->>OAuth: Authorize
-        OAuth-->>Allauth: Callback + code
-        Allauth-->>SPA: 302 /auth/callback (session cookie)
-    end
+    SPA->>Allauth: POST /_allauth/browser/v1/auth/provider/redirect
+    Allauth->>OAuth: Authorize
+    OAuth-->>Allauth: Callback + code
+    Allauth-->>SPA: 302 SPA callback_url (session cookie)
     SPA->>CB: GET /auth/callback (with session cookie)
     CB->>CB: initiate_password_login(user, request)
     alt 2FA not enabled
@@ -357,10 +367,28 @@ sequenceDiagram
 
 ### Step 1 — Start OAuth (browser)
 
-**Option A — from OpenAPI-documented API** (recommended for SPAs):
+**Option A — allauth headless** (recommended for SPAs):
 
 ```http
-GET /api/auth/oauth/google/login?next=/auth/callback
+GET /_allauth/browser/v1/config
+```
+
+Returns configured providers (id, name, supported flows). Then POST a **synchronous HTML form** (not XHR) to start OAuth:
+
+```html
+<form method="post" action="/_allauth/browser/v1/auth/provider/redirect">
+  <input type="hidden" name="provider" value="google" />
+  <input type="hidden" name="callback_url" value="http://localhost:5173/oauth/callback" />
+  <input type="hidden" name="process" value="login" />
+  <input type="hidden" name="csrfmiddlewaretoken" value="..." />
+  <button type="submit">Continue with Google</button>
+</form>
+```
+
+**Option B — lokdown OpenAPI helper** (pre-fills `callback_url`):
+
+```http
+GET /api/auth/oauth/google/login?callback_url=http://localhost:5173/oauth/callback
 ```
 
 **200 response**
@@ -368,29 +396,13 @@ GET /api/auth/oauth/google/login?next=/auth/callback
 ```json
 {
   "provider": "google",
-  "login_url": "http://127.0.0.1:8000/accounts/google/login/?next=%2Fauth%2Fcallback",
-  "next": "/auth/callback"
+  "redirect_url": "http://127.0.0.1:8000/_allauth/browser/v1/auth/provider/redirect",
+  "callback_url": "http://localhost:5173/oauth/callback",
+  "redirect_method": "POST"
 }
 ```
 
-Redirect the browser to `login_url`. List all providers with `GET /api/auth/oauth/providers`.
-
-**Option B — direct allauth URL**
-
-```text
-GET /accounts/google/login/?next=/auth/callback
-GET /accounts/github/login/?next=/auth/callback
-```
-
-| Query param | Purpose |
-|-------------|---------|
-| `next` | Post-login redirect (your SPA callback route) |
-| `process=connect` | Link provider to an **already signed-in** user (skip lokdown middleware short-circuit) |
-
-**Middleware behavior:**
-
-- If the user already has a Django session and opens `/accounts/google/login/?next=...` (without `process=connect`), lokdown redirects straight to `next` (or `auth_callback`) instead of re-running OAuth.
-- Use that for SPA retries; use `process=connect` only when linking another social account in account settings.
+Build a form POST to `redirect_url` with `provider`, `callback_url`, `process=login`, and `csrfmiddlewaretoken`. The legacy `?next=` query param is still accepted as an alias for `callback_url`.
 
 ### Step 2 — OAuth completes (allauth)
 
@@ -514,18 +526,117 @@ GET /accounts/github/login/?process=connect&next=/settings/accounts
 
 Do **not** run the JWT bridge on `connect` completion unless the product flow requires it; the user is already authenticated. Lokdown middleware intentionally does not short-circuit these requests.
 
+### SPA-only frontend (no Django HTML templates)
+
+Use this when your React/Vue/etc. app owns the login UI. With `HEADLESS_ONLY = True`, Django serves provider OAuth callbacks and the headless API only — no allauth HTML login pages.
+
+**Keep on Django**
+
+| Route | Purpose |
+|-------|---------|
+| `/_allauth/browser/v1/config` | Provider discovery |
+| `/_allauth/browser/v1/auth/provider/redirect` | OAuth start (POST form) |
+| `/accounts/<provider>/login/callback/` | Provider callback (redirect only) |
+| `/api/auth/oauth/callback` | Bridge Django session → lokdown JWT |
+
+**Remove or skip in your app**
+
+- Django login/signup HTML templates
+- `/accounts/login/` links in your UI
+- Optional dev-only `/auth/callback` HTML pages
+
+**Same-origin via Vite proxy (recommended)**
+
+Proxy `/_allauth`, `/accounts`, and `/api` to Django. Leave the API base empty; use relative URLs on one host only (`http://localhost:5173`). `GET /api/auth/oauth/callback` authenticates via the Django **session cookie** (`sessionid`), not Bearer JWT.
+
+Provider redirect URIs in Google/GitHub consoles use the **API host** (Django), e.g. `http://localhost:8000/accounts/google/login/callback/`. Restart Vite after proxy changes.
+
+```javascript
+// vite.config.js
+proxy: {
+  "/api": "http://localhost:8000",
+  "/accounts": "http://localhost:8000",
+  "/_allauth": "http://localhost:8000",
+}
+```
+
+```javascript
+function postForm(action, fields) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = action;
+  Object.entries(fields).forEach(([name, value]) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  });
+  document.body.appendChild(form);
+  form.submit();
+}
+
+// Discover providers from allauth headless
+const config = await fetch("/_allauth/browser/v1/config").then((r) => r.json());
+const providers = config.data.socialaccount.providers;
+
+// Start OAuth (synchronous form POST — not fetch/XHR)
+postForm("/_allauth/browser/v1/auth/provider/redirect", {
+  provider: "google",
+  callback_url: `${window.location.origin}/oauth/callback`,
+  process: "login",
+  csrfmiddlewaretoken: document.cookie.match(/csrftoken=([^;]+)/)?.[1] ?? "",
+});
+
+// SPA callback route (/oauth/callback)
+const payload = await fetch("/api/auth/oauth/callback", {
+  credentials: "include",
+}).then((r) => r.json());
+```
+
+**Frontend flow**
+
+1. `GET /_allauth/browser/v1/config` (or `GET /api/auth/oauth/providers` for lokdown metadata)
+2. POST form to `/_allauth/browser/v1/auth/provider/redirect`
+3. After OAuth, allauth redirects to your SPA `callback_url`
+4. `GET /api/auth/oauth/callback` with `credentials: 'include'` to obtain JWTs
+5. If `requires_2fa`, `POST /api/auth/verify` with `session_id`
+
+**Cross-origin SPA settings** (when API and UI are on different hosts)
+
+```python
+SOCIALACCOUNT_LOGIN_ON_GET = True  # skip allauth confirmation page
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:8000",
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+CORS_ALLOW_CREDENTIALS = True
+# Do not use CORS_ALLOW_ALL_ORIGINS=True with credentials
+```
+
+POST requests from the SPA must include `X-CSRFToken` (read `csrftoken` cookie from a prior GET).
+
+The example project documents local dev defaults in [README.md — Local development](../README.md#local-development-example-project).
+
 ### SPA implementation patterns
 
 | Pattern | OAuth start | Callback | 2FA |
 |---------|-------------|----------|-----|
-| **Full redirect** | `window.location = '/accounts/google/login/?next=/auth/callback'` | Server view returns redirect to `/app/2fa?...` or home | Same-origin or API calls with stored `session_id` |
+| **SPA + headless (recommended)** | POST `/_allauth/browser/v1/auth/provider/redirect` with `callback_url` | SPA route calls `GET /api/auth/oauth/callback` | `POST /api/auth/verify` with `session_id` |
+| **Lokdown metadata helper** | `GET /api/auth/oauth/{provider}/login?callback_url=<spa-url>` → build form POST | Same | Same |
 | **Popup + callback page** | Popup opens provider URL; callback page `postMessage` to opener | Callback page reads session via server render | Opener calls `/api/auth/verify` |
-| **BFF (recommended)** | Same | Callback sets HttpOnly cookies server-side | BFF proxies verify |
+| **BFF** | Same | Callback sets HttpOnly cookies server-side | BFF proxies verify |
 
 Requirements:
 
 - Callback and OAuth URLs must be **same-site** (or configured CSRF/trusted origins) so the session cookie is sent.
 - For `fetch` to `/api/auth/verify` after OAuth, use `credentials: 'include'` only if your API shares session cookies; otherwise pass `session_id` in JSON from the callback response (common for SPAs on another origin).
+- Use `/auth/callback` or `/oauth/callback` only for local dev; production SPAs should use `/api/auth/oauth/callback`.
 
 ### What not to do
 
@@ -951,25 +1062,25 @@ Base path assumes `path("api/", include("lokdown.urls"))`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `accounts/<provider>/login/` | No | Start OAuth in browser (`?next=/auth/callback`) |
-| GET | `auth/callback` (your view) | Django session | HTML/JSON bridge after OAuth |
+| GET | `accounts/<provider>/login/` | No | OAuth redirect protocol only — obtain URL via API, not user-facing HTML |
+| GET | `auth/callback` (optional dev view) | Django session | Legacy HTML/JSON bridge; **SPAs should use `auth/oauth/callback` instead** |
 
-**DRF helpers (documented in OpenAPI / Swagger)** — use these from SPAs and `api_schema.json`:
+**DRF helpers (documented in OpenAPI / Swagger)** — primary integration for SPAs (`api_schema.json`):
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `auth/oauth/providers` | No | List configured providers + absolute `login_url` (`?next=` optional) |
-| GET | `auth/oauth/<provider>/login` | No | Single provider `login_url` for browser redirect |
-| GET | `auth/oauth/callback` | Yes (session) | Session → JWT or pre-2FA `session_id` (same as password login) |
+| GET | `auth/oauth/providers` | No | JSON list of providers + headless `redirect_url`; pass `?callback_url=` SPA callback |
+| GET | `auth/oauth/<provider>/login` | No | JSON with headless redirect metadata; set `callback_url` to your SPA route |
+| GET | `auth/oauth/callback` | Yes (session) | **Primary SPA bridge** — JSON only; JWT or pre-2FA `session_id` |
 
 After `GET auth/oauth/callback` returns `requires_2fa: true`, use `POST auth/verify` as usual. See [OAuth workflow](#api-workflow-login-with-external-provider-oauth).
 
 #### `GET /api/auth/oauth/providers`
 
-List providers configured in `SOCIALACCOUNT_PROVIDERS` / `LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`.
+List providers configured via Django admin Social applications (or `SOCIALACCOUNT_PROVIDERS` / `LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`). Pass `callback_url` as your SPA callback URL. Prefer `GET /_allauth/browser/v1/config` for dynamic discovery.
 
 ```http
-GET /api/auth/oauth/providers?next=/auth/callback
+GET /api/auth/oauth/providers?callback_url=http://localhost:5173/oauth/callback
 ```
 
 **200**
@@ -978,12 +1089,16 @@ GET /api/auth/oauth/providers?next=/auth/callback
 {
   "providers": [
     {
-      "id": "google",
-      "login_url": "http://127.0.0.1:8000/accounts/google/login/?next=%2Fauth%2Fcallback"
+      "provider": "google",
+      "redirect_url": "http://127.0.0.1:8000/_allauth/browser/v1/auth/provider/redirect",
+      "callback_url": "http://localhost:5173/oauth/callback",
+      "redirect_method": "POST"
     },
     {
-      "id": "github",
-      "login_url": "http://127.0.0.1:8000/accounts/github/login/?next=%2Fauth%2Fcallback"
+      "provider": "github",
+      "redirect_url": "http://127.0.0.1:8000/_allauth/browser/v1/auth/provider/redirect",
+      "callback_url": "http://localhost:5173/oauth/callback",
+      "redirect_method": "POST"
     }
   ]
 }
@@ -994,7 +1109,7 @@ GET /api/auth/oauth/providers?next=/auth/callback
 #### `GET /api/auth/oauth/{provider}/login`
 
 ```http
-GET /api/auth/oauth/google/login?next=/auth/callback
+GET /api/auth/oauth/google/login?callback_url=http://localhost:5173/oauth/callback
 ```
 
 **200**
@@ -1002,20 +1117,22 @@ GET /api/auth/oauth/google/login?next=/auth/callback
 ```json
 {
   "provider": "google",
-  "login_url": "http://127.0.0.1:8000/accounts/google/login/?next=%2Fauth%2Fcallback",
-  "next": "/auth/callback"
+  "redirect_url": "http://127.0.0.1:8000/_allauth/browser/v1/auth/provider/redirect",
+  "callback_url": "http://localhost:5173/oauth/callback",
+  "redirect_method": "POST"
 }
 ```
 
 **404** — unknown or disabled provider. **503** — allauth unavailable.
 
-#### `GET /api/auth/oauth/callback`
+#### `POST /api/auth/oauth/callback`
 
-Requires an authenticated **Django session** (cookie from OAuth). Does not use `Authorization: Bearer`.
+Requires an authenticated **Django session** (cookie from OAuth) and CSRF protection. Does not use `Authorization: Bearer`.
 
 ```http
-GET /api/auth/oauth/callback
-Cookie: sessionid=...
+POST /api/auth/oauth/callback
+Cookie: sessionid=...; csrftoken=...
+X-CSRFToken: <csrftoken>
 ```
 
 **200** (no lokdown 2FA)
@@ -1042,7 +1159,7 @@ Cookie: sessionid=...
 
 **401** — no session (OAuth not completed). **500** — failed to create `LoginSession`.
 
-For cross-origin SPAs, prefer returning `session_id` / tokens from your own `auth_callback` view; this API route is for same-site clients and Swagger testing (`credentials: 'include'` on `fetch`).
+For cross-origin SPAs, call this endpoint from your frontend callback route with `fetch(..., { credentials: 'include' })`. Configure `CSRF_TRUSTED_ORIGINS` and `CORS_ALLOW_CREDENTIALS` on Django. Returns JSON only — no HTML template.
 
 ### Admin helper (browser)
 
@@ -1092,8 +1209,9 @@ For cross-origin SPAs, prefer returning `session_id` / tokens from your own `aut
 - [ ] Pin lokdown and transitive dependencies; run `pip-audit` in CI.
 - [ ] (Optional) Add `LOKDOWN_ALLAUTH_BASE_APPS` + provider apps to `INSTALLED_APPS` before setting `SOCIALACCOUNT_PROVIDERS`.
 - [ ] (Optional) `globals().update(get_allauth_recommended_settings())` and `MIDDLEWARE += get_lokdown_socialauth_middleware()`.
-- [ ] (Optional) Mount `get_allauth_urlpatterns()` and implement `auth_callback` (or use `GET /api/auth/oauth/callback` from [OpenAPI OAuth endpoints](#external-provider-oauth)).
-- [ ] (Optional) SPA: `GET /api/auth/oauth/{provider}/login` → redirect to `login_url` → `GET /api/auth/oauth/callback` with session cookie.
+- [ ] (Optional) Mount `get_allauth_urlpatterns()`; configure Social applications in Django admin.
+- [ ] (Optional) SPA: `GET /_allauth/browser/v1/config` → POST headless redirect → `GET /api/auth/oauth/callback` with session cookie (see [SPA-only frontend](#spa-only-frontend-no-django-html-templates)).
+- [ ] (Optional) Set `CSRF_TRUSTED_ORIGINS` and `CORS_ALLOWED_ORIGINS` when the frontend is on a different origin.
 - [ ] (Optional) Regenerate `api_schema.json` after API changes: `python manage.py spectacular --file api_schema.json`.
 - [ ] (Optional) Run `python manage.py check` after enabling social auth (expect `lokdown.W003`/`W004` if misconfigured).
 
@@ -1107,7 +1225,8 @@ To customize behaviour without duplicating controllers:
 |----------|--------|-----|
 | `initiate_password_login` | `auth_flow_helper` | After password auth **or** OAuth callback (`request.user` already authenticated) |
 | `bridge_oauth_session_to_lokdown` | `socialauth_controller` | Thin wrapper around `initiate_password_login` for OAuth bridge |
-| `build_provider_login_url` | `socialauth_controller` | Build absolute `/accounts/<provider>/login/` URL for OpenAPI helpers |
+| `OAuthProviderRedirectSerializer.for_provider` | `serializers/socialauth.py` | Validated headless redirect metadata for OpenAPI |
+| `build_oauth_redirect_metadata` | `socialauth/callback_url.py` | Resolve + validate `callback_url`, build provider payload |
 | `verify_second_factor` | `auth_flow_helper` | Second factor during API login |
 | `complete_login_with_tokens` | `auth_flow_helper` | Issue JWT after verification |
 | `begin_totp_setup` / `complete_totp_setup` | `auth_flow_helper` | TOTP enrollment |

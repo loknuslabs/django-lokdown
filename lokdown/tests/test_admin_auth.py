@@ -52,3 +52,36 @@ class TestAdminLoginWithMultipleBackends:
         assert response.status_code == 302
         assert response.url == reverse("admin:index")
         assert client.session.get(BACKEND_SESSION_KEY) == "django.contrib.auth.backends.ModelBackend"
+
+    @override_settings(
+        ADMIN_2FA_REQUIRED=True,
+        AUTHENTICATION_BACKENDS=[
+            "django.contrib.auth.backends.ModelBackend",
+            "allauth.account.auth_backends.AuthenticationBackend",
+        ],
+    )
+    def test_admin_2fa_verify_after_oauth_session_user_switch(self, staff_with_totp):
+        """Staff 2FA verify must succeed when another user is already in the session (OAuth)."""
+        staff_user, secret = staff_with_totp
+        oauth_user = User.objects.create_user(username="oauthuser@example.com", password="unused")
+        login_session = LoginSession.objects.create(
+            user=staff_user,
+            session_id="admin-verify-oauth-switch-session",
+            requires_2fa=True,
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+
+        client = Client()
+        client.force_login(oauth_user)
+        session_obj = client.session
+        session_obj["admin_2fa_session_id"] = login_session.session_id
+        session_obj.save()
+
+        response = client.post(
+            reverse("admin_2fa_verify"),
+            {"totp_token": pyotp.TOTP(secret).now()},
+        )
+        assert response.status_code == 302
+        assert response.url == reverse("admin:index")
+        assert client.session.get("_auth_user_id") == str(staff_user.pk)
+        assert "admin_2fa_session_id" not in client.session

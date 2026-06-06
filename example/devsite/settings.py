@@ -16,8 +16,19 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
+_DEFAULT_DEV_CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:5173",
+]
 csrf_trusted_origins_env = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "")
-CSRF_TRUSTED_ORIGINS = csrf_trusted_origins_env.split(",") if csrf_trusted_origins_env else ""
+if csrf_trusted_origins_env:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_trusted_origins_env.split(",") if o.strip()]
+elif DEBUG:
+    CSRF_TRUSTED_ORIGINS = _DEFAULT_DEV_CSRF_TRUSTED_ORIGINS
+else:
+    CSRF_TRUSTED_ORIGINS = []
 
 CSRF_COOKIE_DOMAIN = os.getenv("DJANGO_CSRF_COOKIE_DOMAIN", "")
 
@@ -26,17 +37,15 @@ ADMINS = [("admin", "admin@example.com")]
 from lokdown.socialauth.settings_helper import (  # noqa: E402
     LOKDOWN_ALLAUTH_BASE_APPS,
     get_allauth_recommended_settings,
+    get_headless_frontend_urls,
     get_lokdown_socialauth_middleware,
     get_provider_installed_apps,
 )
 
 from devsite.socialauth_settings import (  # noqa: E402
-    build_enabled_social_providers,
+    SOCIALAUTH_SUPPORTED_PROVIDERS,
     build_socialaccount_providers,
 )
-
-_SOCIAL_PROVIDERS = build_socialaccount_providers()
-_SOCIAL_PROVIDER_IDS = build_enabled_social_providers()
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -59,10 +68,22 @@ globals().update(get_allauth_recommended_settings())
 
 SITE_ID = 1
 
-SOCIALACCOUNT_PROVIDERS = _SOCIAL_PROVIDERS
+SOCIALACCOUNT_PROVIDERS = build_socialaccount_providers()
 
-LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS = _SOCIAL_PROVIDER_IDS or None
+LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS = SOCIALAUTH_SUPPORTED_PROVIDERS
 LOKDOWN_SOCIALAUTH_CALLBACK_URL_NAME = "auth_callback"
+LOGIN_REDIRECT_URL = "/auth/callback"
+
+_spa_base_url = os.environ.get("LOKDOWN_SPA_BASE_URL", "http://localhost:5173").strip()
+HEADLESS_FRONTEND_URLS = get_headless_frontend_urls(_spa_base_url)
+LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS",
+        f"{_spa_base_url},http://localhost:8000,http://127.0.0.1:8000",
+    ).split(",")
+    if origin.strip()
+]
 
 _auto_redirect = os.environ.get("SOCIALACCOUNT_LOGIN_AUTO_REDIRECT_PROVIDER", "").strip()
 if _auto_redirect:

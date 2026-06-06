@@ -3,9 +3,15 @@
 from django.urls import include, path
 
 
-def get_allauth_urlpatterns(url_prefix: str = "accounts/"):
+def get_allauth_urlpatterns(
+    url_prefix: str = "accounts/",
+    headless_url_prefix: str = "_allauth/",
+):
     """
-    URL patterns for ``path("<prefix>", include(...))``.
+    URL patterns for allauth account callbacks and headless API routes.
+
+    With ``HEADLESS_ONLY = True``, ``/accounts/*`` serves OAuth provider callbacks
+    only; the SPA uses ``/_allauth/browser/v1/*`` for login and provider discovery.
 
     Example::
 
@@ -14,4 +20,7 @@ def get_allauth_urlpatterns(url_prefix: str = "accounts/"):
             path("api/", include("lokdown.urls")),
         ]
     """
-    return [path(url_prefix, include("allauth.urls"))]
+    return [
+        path(url_prefix, include("allauth.urls")),
+        path(headless_url_prefix, include("allauth.headless.urls")),
+    ]
