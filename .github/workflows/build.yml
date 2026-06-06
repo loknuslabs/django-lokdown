@@ -61,13 +61,15 @@ jobs:
               exit 1
               ;;
           esac
-          python -m zipfile -l "$wheel" | grep -q "lokdown/"
-          if python -m zipfile -l "$wheel" | grep -q "example/"; then
+          wheel_listing="$(python -m zipfile -l "$wheel")"
+          echo "$wheel_listing" | grep -q "lokdown/"
+          if echo "$wheel_listing" | grep -q "example/"; then
             echo "Wheel must not include example project files"
             exit 1
           fi
-          tar -tzf "$sdist" | grep -q "lokdown/"
-          if tar -tzf "$sdist" | grep -q "example/"; then
+          sdist_listing="$(tar -tzf "$sdist")"
+          echo "$sdist_listing" | grep -q "lokdown/"
+          if echo "$sdist_listing" | grep -q "example/"; then
             echo "Sdist must not include example project files"
             exit 1
           fi
