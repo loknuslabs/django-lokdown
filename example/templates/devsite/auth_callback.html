@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>OAuth callback — Lokdown example</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 48rem; }
+        pre { background: #f4f4f5; padding: 1rem; overflow: auto; }
+        .ok { color: #166534; }
+        .warn { color: #a16207; }
+        a { color: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <h1>OAuth callback</h1>
+    <p>Signed in as <strong>{{ user.username }}</strong> ({{ user.email|default:"no email" }})</p>
+
+    {% if requires_2fa %}
+        <p class="warn">Lokdown 2FA is required. Use the session below with <code>POST /api/auth/verify</code>.</p>
+        <p>Session ID: <code>{{ payload.session_id }}</code></p>
+        <p>
+            <a href="/api/schema/swagger-ui/">Open API docs</a>
+            ·
+            <span>API: <code>POST /api/auth/oauth/callback</code> (session + CSRF)</span>
+            ·
+            <a href="?format=json">JSON payload</a>
+        </p>
+    {% else %}
+        <p class="ok">JWT issued. Use <code>access_token</code> as <code>Authorization: Bearer …</code> on <code>/api/*</code>.</p>
+        <p>
+            <a href="/api/schema/swagger-ui/">Open API docs</a>
+            ·
+            <span>API: <code>POST /api/auth/oauth/callback</code> (session + CSRF)</span>
+            ·
+            <a href="?format=json">JSON payload</a>
+        </p>
+    {% endif %}
+
+    <h2>Payload</h2>
+    <pre>{{ payload_json }}</pre>
+
+    <p><a href="/">Back to home</a></p>
+</body>
+</html>

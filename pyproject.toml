@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "django-lokdown"
-version = "1.0.0"
+version = "1.1.0"
 description = "Reusable Django app for TOTP and WebAuthn two-factor authentication"
 readme = "README.md"
 authors = [
@@ -39,6 +39,7 @@ dependencies = [
     "webauthn>=2.6.0",
     "Pillow>=11.3.0",
     "cryptography>=43.0.0",
+    "django-allauth[headless]>=65.0.0",
 ]
 
 [project.optional-dependencies]

@@ -2,7 +2,7 @@
     "openapi": "3.0.3",
     "info": {
         "title": "Django Lokdown",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "contact": {
             "name": "Loknus Labs LLC",
             "email": "loknuslabs@gmail.com",
@@ -195,6 +195,9 @@
                     },
                     "401": {
                         "description": "Invalid credentials"
+                    },
+                    "429": {
+                        "description": "Too many authentication attempts"
                     }
                 }
             }
@@ -250,7 +253,162 @@
                         "description": "Invalid session or missing token"
                     },
                     "429": {
-                        "description": "Too many backup code attempts"
+                        "description": "Too many authentication attempts"
+                    }
+                }
+            }
+        },
+        "/api/auth/oauth/providers": {
+            "get": {
+                "operationId": "auth_oauth_providers_retrieve",
+                "description": "Returns headless redirect metadata for each provider configured via Django admin Social applications (or `SOCIALACCOUNT_PROVIDERS`). Prefer `GET /_allauth/browser/v1/config` for dynamic provider discovery; this endpoint pre-fills `callback_url` for lokdown's JWT bridge. `callback_url` must pass allauth `is_safe_url` and, when set, `LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS`. SPA flow: POST a form to `redirect_url` with `provider`, `callback_url`, `process=login`, and `csrfmiddlewaretoken`, then call `POST /api/auth/oauth/callback` with session cookie and CSRF header.",
+                "summary": "List configured OAuth providers",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "callback_url",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Post-OAuth redirect URL for allauth headless. Use your SPA callback route (absolute URL). Defaults to project `auth_callback` when omitted."
+                    },
+                    {
+                        "in": "query",
+                        "name": "next",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Alias for `callback_url` (legacy query param)."
+                    }
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OAuthProvidersResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid or disallowed callback_url"
+                    },
+                    "503": {
+                        "description": "allauth not installed or no providers configured"
+                    }
+                }
+            }
+        },
+        "/api/auth/oauth/{provider}/login": {
+            "get": {
+                "operationId": "auth_oauth_login_retrieve",
+                "description": "Returns headless redirect metadata to start browser OAuth for Google/GitHub/etc. POST a form to `redirect_url` with `provider`, `callback_url`, `process=login`, and `csrfmiddlewaretoken` (synchronous form submit, not XHR). `callback_url` must pass allauth `is_safe_url` and, when set, `LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS`. After OAuth completes, call `POST /api/auth/oauth/callback` from your SPA with session cookie and `X-CSRFToken` to receive JWTs or a pre-2FA `session_id`.",
+                "summary": "OAuth redirect metadata for one provider",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "callback_url",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Post-OAuth redirect URL passed to allauth headless. Prefer your SPA callback (absolute URL). Defaults to project `auth_callback` when omitted."
+                    },
+                    {
+                        "in": "query",
+                        "name": "next",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Alias for `callback_url` (legacy query param)."
+                    },
+                    {
+                        "in": "path",
+                        "name": "provider",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Provider id (google, github, …)",
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OAuthProviderRedirect"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid or disallowed callback_url"
+                    },
+                    "404": {
+                        "description": "Unknown provider"
+                    },
+                    "503": {
+                        "description": "allauth not installed or provider not configured"
+                    }
+                }
+            }
+        },
+        "/api/auth/oauth/callback": {
+            "post": {
+                "operationId": "auth_oauth_callback_create",
+                "description": "Primary SPA callback endpoint. Call after OAuth when the browser has a Django session cookie (`sessionid` on the API origin). Returns JSON only — same shape as `POST /api/auth/login` when 2FA is off, or `session_id` + flags for `POST /api/auth/verify` when 2FA is enabled. Authenticates via Django **session cookie** (`sessionid`), not Bearer JWT. Requires **POST** with CSRF protection (`X-CSRFToken` header or `csrfmiddlewaretoken` body field). Same-origin SPAs can proxy `/accounts/*` and `/api/*` through Vite (e.g. `http://localhost:5173`) so the cookie is set on one host. Cross-origin SPAs need `fetch(..., { credentials: 'include' })` plus `CSRF_TRUSTED_ORIGINS` / `CORS_ALLOW_CREDENTIALS`.",
+                "summary": "Complete OAuth login (session to JWT)",
+                "tags": [
+                    "OAuth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OAuthSessionBridgeResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Not authenticated (no OAuth session cookie)"
+                    },
+                    "403": {
+                        "description": "CSRF verification failed"
+                    },
+                    "503": {
+                        "description": "allauth not installed"
+                    },
+                    "500": {
+                        "description": "Failed to create lokdown login session"
                     }
                 }
             }
@@ -826,6 +984,80 @@
                     "message"
                 ]
             },
+            "OAuthProviderRedirect": {
+                "type": "object",
+                "description": "Headless OAuth start metadata for one provider.\n\nUse :meth:`for_provider` to build a validated instance from the current request.",
+                "properties": {
+                    "provider": {
+                        "type": "string",
+                        "description": "Provider id (e.g. google, github)"
+                    },
+                    "redirect_url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "POST target for allauth headless browser provider redirect"
+                    },
+                    "callback_url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "SPA route allauth redirects to after OAuth completes. Must pass allauth `is_safe_url` and, when set, ``LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS``."
+                    },
+                    "redirect_method": {
+                        "type": "string",
+                        "description": "HTTP method for redirect_url (always \"POST\" for headless browser flow)"
+                    }
+                },
+                "required": [
+                    "callback_url",
+                    "provider",
+                    "redirect_method",
+                    "redirect_url"
+                ]
+            },
+            "OAuthProvidersResponse": {
+                "type": "object",
+                "properties": {
+                    "providers": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OAuthProviderRedirect"
+                        }
+                    }
+                },
+                "required": [
+                    "providers"
+                ]
+            },
+            "OAuthSessionBridgeResponse": {
+                "type": "object",
+                "description": "JWT pair or pre-2FA session after OAuth (same shape as password login).",
+                "properties": {
+                    "requires_2fa": {
+                        "type": "boolean"
+                    },
+                    "access_token": {
+                        "type": "string"
+                    },
+                    "refresh_token": {
+                        "type": "string"
+                    },
+                    "session_id": {
+                        "type": "string"
+                    },
+                    "totp_enabled": {
+                        "type": "boolean"
+                    },
+                    "passkey_enabled": {
+                        "type": "boolean"
+                    },
+                    "backup_codes_available": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "requires_2fa"
+                ]
+            },
             "PasskeyAuthOptionsRequestRequest": {
                 "type": "object",
                 "properties": {
@@ -1117,6 +1349,11 @@
             }
         },
         "securitySchemes": {
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "sessionid"
+            },
             "jwtAuth": {
                 "type": "http",
                 "scheme": "bearer",

@@ -1,5 +1,5 @@
 # Runtime dependencies for django-lokdown (see pyproject.toml [project.dependencies])
-# Consumers should pin exact versions in production, e.g. django-lokdown==1.0.0 and
+# Consumers should pin exact versions in production, e.g. django-lokdown==1.1.0 and
 # pip-compile/pylock a transitive lockfile; run `pip-audit` regularly on that lockfile.
 Django>=5.1
 django-ratelimit>=4.1.0
@@ -11,6 +11,7 @@ qrcode>=8.2
 webauthn>=2.6.0
 Pillow>=11.3.0
 cryptography>=43.0.0
+django-allauth[headless]>=65.0.0
 
 # Example app and development tools (see pyproject.toml [project.optional-dependencies.dev])
 django-cors-headers>=4.7.0

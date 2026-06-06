@@ -1,31 +1,20 @@
-# Local example project
+# Example project
 
-This directory is **not** published to PyPI. It runs django-lokdown from the repository for local development and manual testing.
+Local Django project for testing django-lokdown (not published to PyPI).
 
-## Setup
+**Full documentation:** [../lokdown/README.md](../lokdown/README.md)
 
-From the repository root:
+- [Local development](../lokdown/README.md#local-development-example-project)
+- [OAuth setup](../lokdown/README.md#social-login-oauth)
+- [SPA-only frontend](../lokdown/docs/AUTHENTICATION.md#spa-only-frontend-no-django-html-templates)
+
+## Quick start
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
 pip install -e ".[dev]"
-```
-
-## Run the dev server
-
-```bash
 cd example
 python manage.py migrate
 python manage.py runserver
 ```
 
-- Home: http://127.0.0.1:8000/
-- Admin (with 2FA): http://127.0.0.1:8000/admin/ (user `admin` / `password` after migrate)
-- API docs: http://127.0.0.1:8000/api/schema/swagger-ui/
-
-You can also use the root helper script:
-
-```bash
-./scripts/runserver.sh
-```
+Default admin: `admin` / `password`

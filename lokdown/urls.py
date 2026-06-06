@@ -22,6 +22,7 @@ from lokdown.admin_auth import (
     admin_login_view,
 )
 from lokdown.control import auth_controller
+from lokdown.control import socialauth_controller
 from lokdown.control import backup_code_controller
 from lokdown.control import passkey_controller
 from lokdown.control import token_controller
@@ -148,6 +149,17 @@ urlpatterns = [
     ),
     path("auth/login", auth_controller.login_init, name="login_init"),
     path("auth/verify", auth_controller.login_verify, name="login_verify"),
+    path("auth/oauth/providers", socialauth_controller.oauth_providers, name="oauth_providers"),
+    path(
+        "auth/oauth/<str:provider>/login",
+        socialauth_controller.oauth_provider_login,
+        name="oauth_provider_login",
+    ),
+    path(
+        "auth/oauth/callback",
+        socialauth_controller.oauth_callback_bridge,
+        name="oauth_callback_bridge",
+    ),
     path("auth/2fa/setup/totp", totp_controller.setup_totp, name="setup_totp"),
     path("auth/2fa/verify/totp", totp_controller.verify_totp_setup, name="verify_totp_setup"),
     path(
