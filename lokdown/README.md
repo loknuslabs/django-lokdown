@@ -1,6 +1,6 @@
 # Django Lokdown
 
-A reusable Django package providing Two-Factor Authentication (2FA) with TOTP, WebAuthn passkeys, JWT APIs, enhanced Django admin integration, and optional social login (django-allauth).
+A reusable Django package providing Two-Factor Authentication (2FA) with TOTP, WebAuthn passkeys, JWT APIs, optional user API keys, enhanced Django admin integration, and optional social login (django-allauth).
 
 **Deep-dive authentication workflows:** [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md)
 
@@ -16,6 +16,7 @@ A reusable Django package providing Two-Factor Authentication (2FA) with TOTP, W
 - [Configuration](#configuration)
 - [API reference](#api-reference)
 - [Password login and 2FA](#password-login-and-2fa)
+- [User API keys](#user-api-keys)
 - [Social login (OAuth)](#social-login-oauth)
 - [Local development (example project)](#local-development-example-project)
 - [Django admin](#django-admin)
@@ -49,6 +50,7 @@ Lokdown works **without** allauth in `INSTALLED_APPS`; `python manage.py check` 
 - **Backup Codes**: One-time use backup codes for account recovery
 - **Rate Limiting**: Strict rate limiting for backup codes and failed attempts
 - **JWT APIs**: Password login, 2FA verify, token refresh via DRF
+- **User API keys**: Optional per-user API keys (hashed at rest, shown once) for machine-to-machine auth alongside JWT
 - **Admin Dashboard**: Security monitoring with dark mode support
 - **Admin 2FA**: Streamlined one-click TOTP/passkey setup and verification for staff
 - **CLI Tools**: Security audit and management commands
@@ -118,6 +120,7 @@ django-lokdown/
 │   ├── socialauth/        # Optional django-allauth helpers
 │   ├── urls.py            # API routes + override_admin_urls()
 │   ├── control/           # Authentication controllers
+│   ├── authentication.py  # DRF API key authentication class
 │   ├── helpers/           # TOTP, passkey, session, backup code helpers
 │   ├── docs/              # AUTHENTICATION.md (detailed workflows)
 │   └── templates/         # Admin 2FA HTML templates
@@ -184,6 +187,31 @@ BACKUP_CODES_COUNT = 8
 BACKUP_CODE_LENGTH = 10
 ```
 
+### Optional API key settings
+
+API keys are **disabled by default**. They authenticate as the owning user on your protected endpoints but do **not** replace password login or JWT issuance.
+
+```python
+LOKDOWN_API_KEYS_ENABLED = True
+LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS = 365       # optional cap; None = no cap
+LOKDOWN_API_KEY_ALLOW_INDEFINITE = True       # allow keys with no expiry
+LOKDOWN_API_KEY_PREFIX = "lk_"                # key prefix (default lk_)
+LOKDOWN_API_KEY_AUTH_SCHEME = "Api-Key"       # Authorization scheme
+```
+
+Add the authentication class so clients can call your APIs with an API key:
+
+```python
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "lokdown.authentication.LokdownApiKeyAuthentication",
+    ],
+}
+```
+
+Clients send `Authorization: Api-Key lk_<prefix>.<secret>`. Key management endpoints (`GET`/`POST /api/auth/api-keys`, `DELETE /api/auth/api-keys/<id>`) require a JWT from password login. See [User API keys](#user-api-keys).
+
 ### Environment variable reference
 
 | Variable | Default | Description |
@@ -198,6 +226,11 @@ BACKUP_CODE_LENGTH = 10
 | `ADMIN_2FA_REQUIRED` | `False` | Require 2FA for admin users |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | — | Comma-separated CSRF trusted origins |
 | `SOCIALACCOUNT_LOGIN_AUTO_REDIRECT_PROVIDER` | — | Skip `/accounts/login/` HTML (`google`, `github`, …) |
+| `LOKDOWN_API_KEYS_ENABLED` | `False` | Enable API key generation and authentication |
+| `LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS` | `None` | Maximum allowed key lifespan in days |
+| `LOKDOWN_API_KEY_ALLOW_INDEFINITE` | `True` | Allow keys with no expiry |
+| `LOKDOWN_API_KEY_PREFIX` | `lk_` | Prefix for generated keys |
+| `LOKDOWN_API_KEY_AUTH_SCHEME` | `Api-Key` | Authorization header scheme |
 
 ### REST Framework and JWT (example defaults)
 
@@ -205,6 +238,7 @@ BACKUP_CODE_LENGTH = 10
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "lokdown.authentication.LokdownApiKeyAuthentication",
     ],
 }
 
@@ -230,6 +264,7 @@ Prefix paths with `/api/` when included as `path("api/", include("lokdown.urls")
 | TOTP setup | `auth/2fa/setup/totp`, `auth/2fa/verify/totp` |
 | Passkey | `auth/2fa/passkey/setup`, `auth/2fa/passkey/verify`, `auth/2fa/passkey/options` |
 | Backup / status | `auth/2fa/verify/backup`, `auth/2fa/status`, `auth/2fa/disable` |
+| API keys (OpenAPI tag **API Keys**) | `auth/api-keys`, `auth/api-keys/<id>` |
 
 Allauth headless (`/_allauth/browser/v1/*`) is not in lokdown OpenAPI; use it for provider discovery and OAuth start, then **OAuth** API helpers for the JWT bridge.
 
@@ -320,6 +355,78 @@ await fetch("/api/auth/2fa/passkey/verify", {
 - **Hardware:** YubiKey, Feitian, Solo, Titan, any FIDO2 key
 - **Platform:** Apple Keychain, Google Password Manager, Windows Hello, Touch ID, Face ID
 - **Browsers:** Chrome 67+, Firefox 60+, Safari 13+, Edge 18+
+
+---
+
+## User API keys
+
+Optional **user-tied API keys** for machine-to-machine access to your own protected endpoints. Keys are hashed at rest (Django password hasher, same approach as backup codes). The full key is returned **once** at creation; only metadata is available afterward.
+
+API keys are an **additional** auth mechanism — they do not replace password login, OAuth, or JWT token endpoints.
+
+### Enable
+
+```python
+LOKDOWN_API_KEYS_ENABLED = True
+LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS = 365   # optional; None = no upper bound
+LOKDOWN_API_KEY_ALLOW_INDEFINITE = True   # set False to require expires_in_days on create
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "lokdown.authentication.LokdownApiKeyAuthentication",
+    ],
+}
+```
+
+### Manage keys (JWT required)
+
+Create, list, and revoke keys while authenticated with a JWT from password login:
+
+```bash
+# Create (returns full key once)
+curl -X POST http://localhost:8000/api/auth/api-keys \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "CI deploy", "expires_in_days": 90}'
+
+# List metadata only
+curl http://localhost:8000/api/auth/api-keys \
+  -H "Authorization: Bearer <jwt>"
+
+# Revoke
+curl -X DELETE http://localhost:8000/api/auth/api-keys/1 \
+  -H "Authorization: Bearer <jwt>"
+```
+
+**Create response (201):**
+
+```json
+{
+  "id": 1,
+  "name": "CI deploy",
+  "prefix": "lk_a1b2c3d4",
+  "api_key": "lk_a1b2c3d4.<secret>",
+  "created_at": "2026-06-06T12:00:00Z",
+  "expires_at": "2026-09-04T12:00:00Z"
+}
+```
+
+**List response (200):** metadata per key (`prefix`, `last_used_at`, `expires_at`, `is_active`) — no `api_key` field.
+
+Omit `expires_in_days` to create an indefinite key when `LOKDOWN_API_KEY_ALLOW_INDEFINITE` is `True`.
+
+### Use keys on your endpoints
+
+After adding `LokdownApiKeyAuthentication` to `DEFAULT_AUTHENTICATION_CLASSES`, clients authenticate with:
+
+```http
+Authorization: Api-Key lk_a1b2c3d4.<secret>
+```
+
+The resolved user is available as `request.user` on any view protected by `IsAuthenticated`. API keys cannot be used to call lokdown login or key-management endpoints that require JWT.
+
+See [docs/AUTHENTICATION.md — API keys](docs/AUTHENTICATION.md#api-workflow-user-api-keys) for full request/response shapes and lifespan rules.
 
 ---
 
@@ -533,6 +640,7 @@ python manage.py runserver
 - **BackupCodes**: Backup code management
 - **LoginSession**: Active login sessions
 - **FailedBackupCodeAttempt**: Failed backup code tracking
+- **UserApiKey**: User-tied API key metadata (hashed secrets; admin can revoke)
 
 Access at `/admin/`
 
@@ -587,6 +695,10 @@ urlpatterns = override_admin_urls(urlpatterns)
 
 - `user`, `ip_address`, `user_agent`, `attempted_code`, `created_at`
 
+### UserApiKey
+
+- `user`, `name`, `prefix`, `key_hash`, `created_at`, `last_used_at`, `expires_at`, `revoked_at`
+
 ---
 
 ## Management commands
@@ -629,6 +741,7 @@ Override in your project `templates/`:
 4. **Verification-before-save** — TOTP saved only after successful verification
 5. **HTTPS** — required for WebAuthn in production
 6. **JWT** — use `Authorization: Bearer` for API calls after login
+7. **API keys** — hashed at rest; full key shown once at creation; optional expiry and revocation; disabled unless `LOKDOWN_API_KEYS_ENABLED = True`
 
 ### Session and backup code behavior
 

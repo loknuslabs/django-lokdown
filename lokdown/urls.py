@@ -21,6 +21,7 @@ from lokdown.admin_auth import (
     admin_current_user_totp_setup,
     admin_login_view,
 )
+from lokdown.control import api_key_controller
 from lokdown.control import auth_controller
 from lokdown.control import socialauth_controller
 from lokdown.control import backup_code_controller
@@ -195,4 +196,6 @@ urlpatterns = [
         passkey_controller.admin_2fa_auth_options,
         name="admin_2fa_auth_options",
     ),
+    path("auth/api-keys", api_key_controller.manage_api_keys, name="manage_api_keys"),
+    path("auth/api-keys/<int:key_id>", api_key_controller.revoke_api_key, name="revoke_api_key"),
 ]

@@ -96,9 +96,14 @@ BACKUP_CODES_COUNT = 4
 BACKUP_CODE_LENGTH = 8
 ADMIN_2FA_REQUIRED = True
 
+LOKDOWN_API_KEYS_ENABLED = True
+LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS = 365
+LOKDOWN_API_KEY_ALLOW_INDEFINITE = True
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "lokdown.authentication.LokdownApiKeyAuthentication",
     ],
 }
 

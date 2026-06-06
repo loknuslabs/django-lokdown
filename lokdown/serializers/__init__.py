@@ -2,6 +2,13 @@
 Stable request/response serializers for lokdown API endpoints.
 """
 
+from lokdown.serializers.api_key import (
+    ApiKeyCreateRequestSerializer,
+    ApiKeyCreatedResponseSerializer,
+    ApiKeyListResponseSerializer,
+    ApiKeyMetadataSerializer,
+    ApiKeyRevokeResponseSerializer,
+)
 from lokdown.serializers.auth import (
     AdminPasskeyAuthOptionsResponseSerializer,
     DisableTwoFAResponseSerializer,
@@ -61,6 +68,11 @@ AdminAuthOptionsResponseSerializer = AdminPasskeyAuthOptionsResponseSerializer
 __all__ = [
     "AdminAuthOptionsResponseSerializer",
     "AdminPasskeyAuthOptionsResponseSerializer",
+    "ApiKeyCreateRequestSerializer",
+    "ApiKeyCreatedResponseSerializer",
+    "ApiKeyListResponseSerializer",
+    "ApiKeyMetadataSerializer",
+    "ApiKeyRevokeResponseSerializer",
     "BackupCodeSerializer",
     "BackupCodeVerifyRequestSerializer",
     "BackupCodeVerifyResponseSerializer",
