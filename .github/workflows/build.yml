@@ -9,6 +9,8 @@ on:
       - "lokdown/**"
       - "pyproject.toml"
       - "README.md"
+      - "MANIFEST.in"
+      - ".github/workflows/build.yml"
 
 concurrency:
   group: pypi-${{ github.ref }}
@@ -18,6 +20,8 @@ jobs:
   build-package:
     name: Build lokdown package
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout code
@@ -27,6 +31,13 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+
+      - name: Read package version
+        id: version
+        run: |
+          VERSION="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package version: $VERSION"
 
       - name: Install build tool
         run: python -m pip install --upgrade pip build
@@ -55,22 +66,65 @@ jobs:
               ;;
           esac
           case "$(basename "$sdist")" in
-            django-lokdown-*) ;;
+            django_lokdown-*) ;;
             *)
               echo "Unexpected sdist name: $sdist"
               exit 1
               ;;
           esac
-          python -m zipfile -l "$wheel" | grep -q "lokdown/"
-          if python -m zipfile -l "$wheel" | grep -q "example/"; then
-            echo "Wheel must not include example project files"
-            exit 1
-          fi
-          tar -tzf "$sdist" | grep -q "lokdown/"
-          if tar -tzf "$sdist" | grep -q "example/"; then
-            echo "Sdist must not include example project files"
-            exit 1
-          fi
+          python - "$wheel" "$sdist" <<'PY'
+          import sys
+          import tarfile
+          import zipfile
+          from pathlib import PurePosixPath
+
+          wheel_path = sys.argv[1]
+          sdist_path = sys.argv[2]
+          forbidden = ("example/", "lokdown/tests/", ".github/")
+
+          def is_forbidden(path: str) -> bool:
+              normalized = PurePosixPath(path.replace("\\", "/")).as_posix()
+              return any(part in normalized for part in forbidden)
+
+          with zipfile.ZipFile(wheel_path) as archive:
+              for name in archive.namelist():
+                  if name.endswith("/"):
+                      continue
+                  if is_forbidden(name):
+                      raise SystemExit(f"Wheel must not include: {name}")
+                  if ".dist-info/" not in name and not name.startswith("lokdown/"):
+                      raise SystemExit(f"Wheel contains unexpected path: {name}")
+
+          with tarfile.open(sdist_path, "r:gz") as archive:
+              for member in archive.getmembers():
+                  if not member.isfile():
+                      continue
+                  name = member.name
+                  if is_forbidden(name):
+                      raise SystemExit(f"Sdist must not include: {name}")
+                  parts = PurePosixPath(name).parts
+                  if len(parts) < 2:
+                      continue
+                  inner = "/".join(parts[1:])
+                  if not inner:
+                      continue
+                  allowed_roots = (
+                      "lokdown/",
+                      "pyproject.toml",
+                      "README.md",
+                      "LICENSE",
+                      "MANIFEST.in",
+                      "PKG-INFO",
+                      "setup.cfg",
+                      "setup.py",
+                  )
+                  if inner.startswith("django_lokdown.egg-info/"):
+                      continue
+                  if not any(inner == root or inner.startswith(root) for root in allowed_roots):
+                      raise SystemExit(f"Sdist contains unexpected path: {name}")
+
+          print("Package contents verified: only lokdown/ and required metadata included.")
+          PY
 
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
@@ -105,3 +159,32 @@ jobs:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: python -m twine upload --non-interactive dist/*
+
+  tag-release:
+    name: Tag release
+    needs: [build-package, publish-package]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Create and push version tag
+        env:
+          VERSION: ${{ needs.build-package.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release django-lokdown ${VERSION}"
+          git push origin "$TAG"

@@ -1,17 +1,17 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=82.0.0", "wheel>=0.47.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "django-lokdown"
-version = "1.1.0"
+version = "1.1.1"
 description = "Reusable Django app for TOTP and WebAuthn two-factor authentication"
-readme = "README.md"
+readme = "lokdown/README.md"
 authors = [
     { name = "Loknus Labs LLC", email = "loknuslabs@gmail.com" }
 ]
 license = "GPL-3.0-or-later"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 keywords = ["django", "2fa", "totp", "webauthn", "passkey", "authentication"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -19,37 +19,36 @@ classifiers = [
     "Framework :: Django",
     "Framework :: Django :: 5.1",
     "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Security",
 ]
 dependencies = [
-    "Django>=5.1",
+    "Django>=6.0.6",
     "django-ratelimit>=4.1.0",
-    "djangorestframework>=3.16.1",
+    "djangorestframework>=3.17.1",
     "djangorestframework-simplejwt>=5.5.1",
-    "drf-spectacular>=0.28.0",
+    "drf-spectacular>=0.29.0",
     "pyotp>=2.9.0",
     "qrcode>=8.2",
-    "webauthn>=2.6.0",
-    "Pillow>=11.3.0",
-    "cryptography>=43.0.0",
-    "django-allauth[headless]>=65.0.0",
+    "webauthn>=2.7.1",
+    "Pillow>=12.2.0",
+    "cryptography>=48.0.0",
+    "django-allauth[headless]>=65.18.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "django-cors-headers>=4.7.0",
+    "django-cors-headers>=4.9.0",
     "black==26.5.1",
     "flake8>=7.3.0",
-    "pytest>=8.4.0",
-    "pytest-django>=4.11.0",
-    "pip-audit>=2.9.0",
+    "pytest>=9.0.3",
+    "pytest-django>=4.12.0",
+    "pip-audit>=2.10.0",
 ]
 
 [project.urls]
@@ -59,8 +58,8 @@ Repository = "https://github.com/loknuslabs/django-lokdown"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lokdown*"]
-exclude = ["example*", "tests*", "*.tests*", ".github*"]
+include = ["lokdown"]
+exclude = ["lokdown.tests*", "example*", "tests*", "*.tests*", ".github*"]
 
 [tool.setuptools.package-data]
 lokdown = ["templates/**/*", "migrations/**/*.py"]
