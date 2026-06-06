@@ -8,3 +8,4 @@ class LokdownConfig(AppConfig):
 
     def ready(self):
         from lokdown import checks  # noqa: F401
+        from lokdown import spectacular_extensions  # noqa: F401
