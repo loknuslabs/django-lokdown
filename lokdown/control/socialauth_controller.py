@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from lokdown.helpers.auth_flow_helper import initiate_password_login
+from lokdown.helpers.feature_settings_helper import feature_disabled_message, socialauth_enabled
 from lokdown.serializers.socialauth import (
     OAuthProviderRedirectSerializer,
     OAuthProvidersResponseSerializer,
@@ -29,6 +30,13 @@ def _service_unavailable() -> Response:
     return Response(
         {"error": "django-allauth is not installed or no OAuth providers are configured"},
         status=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
+
+
+def _socialauth_disabled() -> Response:
+    return Response(
+        {"error": feature_disabled_message("Social account")},
+        status=status.HTTP_403_FORBIDDEN,
     )
 
 
@@ -86,6 +94,8 @@ def bridge_oauth_session_to_lokdown(user, request) -> dict:
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def oauth_providers(request):
+    if not socialauth_enabled():
+        return _socialauth_disabled()
     if not allauth_is_installed() or not get_enabled_social_providers():
         return _service_unavailable()
 
@@ -148,6 +158,8 @@ def oauth_providers(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def oauth_provider_login(request, provider: str):
+    if not socialauth_enabled():
+        return _socialauth_disabled()
     if not allauth_is_installed():
         return _service_unavailable()
 
@@ -192,6 +204,8 @@ def oauth_provider_login(request, provider: str):
 @authentication_classes([SessionAuthentication])
 @permission_classes([IsAuthenticated])
 def oauth_callback_bridge(request):
+    if not socialauth_enabled():
+        return _socialauth_disabled()
     if not allauth_is_installed():
         return _service_unavailable()
 

@@ -71,6 +71,23 @@ When `LOKDOWN_API_KEYS_ENABLED = True`, users can create **user-tied API keys** 
 
 See [API workflow: user API keys](#api-workflow-user-api-keys).
 
+### Feature flags
+
+Optional capabilities are **disabled by default**. Set the flags you need in `settings.py`:
+
+| Setting | Default | Effect when `True` |
+|---------|---------|-------------------|
+| `LOKDOWN_TOTP_ENABLED` | `False` | TOTP setup/login APIs and admin enrollment; backup codes generated on setup |
+| `LOKDOWN_PASSKEY_ENABLED` | `False` | Passkey setup/login APIs and admin enrollment; backup codes generated on setup |
+| `LOKDOWN_API_KEYS_ENABLED` | `False` | API key CRUD and `LokdownApiKeyAuthentication` |
+| `LOKDOWN_SOCIALAUTH_ENABLED` | `False` | OAuth provider helpers and session bridge (`/api/auth/oauth/*`) |
+
+When a flag is `False`, enrollment endpoints return **403**. Users who already enrolled can still complete login with that factor. Backup codes remain available at login when the user has codes, regardless of enrollment flags.
+
+`GET /api/auth/2fa/status` returns `totp_available` and `passkey_available` (from settings) alongside per-user `totp_enabled` and `passkey_enabled`.
+
+If `ADMIN_2FA_REQUIRED = True`, enable at least one of `LOKDOWN_TOTP_ENABLED` or `LOKDOWN_PASSKEY_ENABLED` (`lokdown.W005`).
+
 ---
 
 ## Project setup
@@ -95,15 +112,18 @@ WEBAUTHN_ORIGINS = [
 ]
 WEBAUTHN_ORIGIN = "http://localhost:8000"  # optional; first origin if ORIGINS unset
 
+# Feature flags (disabled by default — enable what you need)
+LOKDOWN_TOTP_ENABLED = False          # TOTP enrollment/login; backup codes on setup
+LOKDOWN_PASSKEY_ENABLED = False       # passkey enrollment/login; backup codes on setup
+LOKDOWN_SOCIALAUTH_ENABLED = False    # OAuth / social login (requires django-allauth)
+LOKDOWN_API_KEYS_ENABLED = False      # user API keys
+
 # 2FA behaviour
 TWOFA_SESSION_TIMEOUT = 10            # minutes, pending LoginSession lifetime
 BACKUP_CODE_RATE_LIMIT = 10           # attempts per IP per minute
 BACKUP_CODES_COUNT = 8
 BACKUP_CODE_LENGTH = 10
 ADMIN_2FA_REQUIRED = True             # custom admin login + 2FA routes
-
-# Optional user API keys (disabled by default)
-LOKDOWN_API_KEYS_ENABLED = False
 LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS = None   # e.g. 365 to cap lifespan; None = no cap
 LOKDOWN_API_KEY_ALLOW_INDEFINITE = True
 LOKDOWN_API_KEY_PREFIX = "lk_"
@@ -153,7 +173,7 @@ Lokdown ships helpers around **django-allauth** so SPAs can use OAuth providers 
 
 ### Optional integration
 
-Social login is **optional**. You only need the steps below if you want OAuth in your project.
+Social login is **optional**. Set `LOKDOWN_SOCIALAUTH_ENABLED = True` and follow the steps below if you want OAuth in your project.
 
 | Scenario | What to do |
 |----------|------------|
@@ -1334,7 +1354,7 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 | 200 | Success |
 | 400 | Invalid/expired `session_id`, missing fields, passkey without prior options |
 | 401 | Bad password, bad 2FA token, SimpleJWT 2FA-required response on `/auth/token`, invalid/expired API key |
-| 403 | API key endpoints when `LOKDOWN_API_KEYS_ENABLED` is `False` |
+| 403 | Feature disabled (`LOKDOWN_*_ENABLED` is `False`) — API keys, TOTP/passkey enrollment, or OAuth helpers |
 | 429 | Backup code rate limit exceeded |
 | 500 | Failed to create session or generate WebAuthn options |
 
@@ -1351,7 +1371,8 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 7. **Verification before save** — TOTP secret and passkey credentials are persisted only after a successful verification step.
 8. **Dependency supply chain** — Pin `django-lokdown` and its transitive dependencies in production (`pip-tools`, `uv lock`, etc.) and run [`pip-audit`](https://pypi.org/project/pip-audit/) on your lockfile in CI.
 9. **`security_audit --cleanup`** — Dry-run by default; pass `--force` with `--cleanup` to delete expired sessions, old failed backup attempts, and stale passkeys.
-10. **Social auth checks** — `lokdown.W003`/`W004` apply only when `"allauth"` is in `INSTALLED_APPS` and providers are configured; projects without OAuth can omit allauth entirely.
+10. **Social auth checks** — `lokdown.W003`/`W004` apply only when `LOKDOWN_SOCIALAUTH_ENABLED` is `True`, `"allauth"` is in `INSTALLED_APPS`, and providers are configured; projects without OAuth can omit allauth entirely.
+11. **Admin 2FA enrollment** — `lokdown.W005` warns when `ADMIN_2FA_REQUIRED` is `True` but both `LOKDOWN_TOTP_ENABLED` and `LOKDOWN_PASSKEY_ENABLED` are `False`.
 
 ---
 
@@ -1365,6 +1386,7 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 - [ ] On 2FA setup: call `setup/totp` then `verify/totp` with only `totp_token` (pending secret is stored server-side).
 - [ ] On passkey setup: pass `session_id` from setup into verify.
 - [ ] Treat backup codes as single-use; handle 429 on backup attempts.
+- [ ] Enable feature flags you need: `LOKDOWN_TOTP_ENABLED`, `LOKDOWN_PASSKEY_ENABLED`, `LOKDOWN_API_KEYS_ENABLED`, `LOKDOWN_SOCIALAUTH_ENABLED`.
 - [ ] (Optional) Enable API keys: `LOKDOWN_API_KEYS_ENABLED = True`, add `LokdownApiKeyAuthentication`, set lifespan settings; store keys securely after create (see [API keys](#api-workflow-user-api-keys)).
 - [ ] Pin lokdown and transitive dependencies; run `pip-audit` in CI.
 - [ ] (Optional) Add `LOKDOWN_ALLAUTH_BASE_APPS` + provider apps to `INSTALLED_APPS` before setting `SOCIALACCOUNT_PROVIDERS`.

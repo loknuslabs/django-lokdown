@@ -41,6 +41,10 @@ class TestSettingsHelper:
     def test_explicit_enabled_providers_override(self):
         assert get_enabled_social_providers() == ["dummy", "google"]
 
+    @override_settings(LOKDOWN_SOCIALAUTH_ENABLED=False, LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS=["google"])
+    def test_returns_empty_when_socialauth_disabled(self):
+        assert get_enabled_social_providers() == []
+
     @pytest.mark.django_db
     @override_settings(
         LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS=["google", "github"],

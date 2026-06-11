@@ -55,6 +55,8 @@ def get_enabled_social_providers() -> list[str]:
     """
     Provider ids enabled for lokdown middleware and URL helpers.
 
+    Returns an empty list when ``LOKDOWN_SOCIALAUTH_ENABLED`` is ``False``.
+
     Resolution order:
 
     1. ``LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`` when set — if no provider has
@@ -63,6 +65,11 @@ def get_enabled_social_providers() -> list[str]:
     2. Keys from ``SOCIALACCOUNT_PROVIDERS`` with ``APPS``/``APP`` in settings.
     3. Admin ``SocialApp`` records for ``SITE_ID``.
     """
+    from lokdown.helpers.feature_settings_helper import socialauth_enabled
+
+    if not socialauth_enabled():
+        return []
+
     explicit = getattr(settings, "LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS", None)
     settings_apps = _providers_with_settings_apps()
 

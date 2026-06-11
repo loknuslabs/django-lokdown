@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from lokdown.helpers.auth_flow_helper import begin_totp_setup, complete_totp_setup
+from lokdown.helpers.feature_settings_helper import feature_disabled_message, totp_enabled
 from lokdown.helpers.totp_helper import has_totp_enabled
 from lokdown.serializers import (
     ErrorResponseSerializer,
@@ -15,21 +16,36 @@ from lokdown.serializers import (
 )
 
 
+def _totp_disabled_response():
+    return Response(
+        ErrorResponseSerializer({"error": feature_disabled_message("TOTP")}).data,
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
 @extend_schema(
     summary="Setup TOTP for authenticated user",
     tags=["2FA TOTP"],
     request=TOTPSetupRequestSerializer,
-    responses={200: TOTPSetupResponseSerializer},
+    responses={
+        200: TOTPSetupResponseSerializer,
+        403: ErrorResponseSerializer,
+    },
 )
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def setup_totp(request):
+    if not totp_enabled():
+        return _totp_disabled_response()
     if has_totp_enabled(request.user):
         return Response(
             ErrorResponseSerializer({"error": "TOTP is already enabled"}).data,
             status=status.HTTP_400_BAD_REQUEST,
         )
-    payload = begin_totp_setup(request.user)
+    try:
+        payload = begin_totp_setup(request.user)
+    except ValueError as exc:
+        return Response(ErrorResponseSerializer({"error": str(exc)}).data, status=status.HTTP_403_FORBIDDEN)
     return Response(TOTPSetupResponseSerializer(payload).data)
 
 
@@ -40,11 +56,14 @@ def setup_totp(request):
     responses={
         200: TwoFactorSetupCompleteResponseSerializer,
         401: ErrorResponseSerializer,
+        403: ErrorResponseSerializer,
     },
 )
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def verify_totp_setup(request):
+    if not totp_enabled():
+        return _totp_disabled_response()
     serializer = TOTPVerifySetupRequestSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
