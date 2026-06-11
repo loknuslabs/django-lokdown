@@ -5,7 +5,7 @@ from django.core.management.utils import get_random_secret_key
 import os
 from datetime import timedelta
 
-VERSION = "1.1.2"
+VERSION = "1.2.0"
 
 # example/ directory
 BASE_DIR = Path(__file__).resolve().parent.parent
