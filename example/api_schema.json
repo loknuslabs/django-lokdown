@@ -450,6 +450,16 @@
                             }
                         },
                         "description": ""
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 }
             }
@@ -501,6 +511,16 @@
                         "description": ""
                     },
                     "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "403": {
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -609,6 +629,16 @@
                             }
                         },
                         "description": ""
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 }
             }
@@ -660,6 +690,16 @@
                         "description": ""
                     },
                     "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "403": {
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1663,11 +1703,21 @@
                     "passkey_enabled": {
                         "type": "boolean",
                         "readOnly": true
+                    },
+                    "totp_available": {
+                        "type": "boolean",
+                        "readOnly": true
+                    },
+                    "passkey_available": {
+                        "type": "boolean",
+                        "readOnly": true
                     }
                 },
                 "required": [
                     "is_enabled",
+                    "passkey_available",
                     "passkey_enabled",
+                    "totp_available",
                     "totp_enabled"
                 ]
             }
