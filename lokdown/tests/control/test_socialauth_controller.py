@@ -92,3 +92,15 @@ class TestOAuthApiEndpoints:
     def test_oauth_providers_503_without_allauth(self, oauth_api_client):
         response = oauth_api_client.get(reverse("lokdown:oauth_providers"))
         assert response.status_code == 503
+
+    @override_settings(LOKDOWN_SOCIALAUTH_ENABLED=False)
+    def test_oauth_disabled_returns_403(self, oauth_api_client, user):
+        response = oauth_api_client.get(reverse("lokdown:oauth_providers"))
+        assert response.status_code == 403
+
+        response = oauth_api_client.get(reverse("lokdown:oauth_provider_login", kwargs={"provider": "google"}))
+        assert response.status_code == 403
+
+        oauth_api_client.force_authenticate(user=user)
+        response = oauth_api_client.post(reverse("lokdown:oauth_callback_bridge"))
+        assert response.status_code == 403

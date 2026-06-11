@@ -1,12 +1,14 @@
 from django.conf import settings
 from django.core.checks import Warning, register
 
+from lokdown.helpers.feature_settings_helper import any_2fa_enrollment_enabled, socialauth_enabled
 from lokdown.helpers.webauthn_settings_helper import parse_webauthn_origins
 
 ADMIN_2FA_REQUIRED_CHECK_ID = "lokdown.W001"
 WEBAUTHN_ORIGINS_CHECK_ID = "lokdown.W002"
 SOCIALAUTH_SITE_ID_CHECK_ID = "lokdown.W003"
 SOCIALAUTH_ADAPTER_CHECK_ID = "lokdown.W004"
+ADMIN_2FA_FEATURES_CHECK_ID = "lokdown.W005"
 
 
 @register()
@@ -46,7 +48,9 @@ def _allauth_installed():
 
 
 def _socialauth_in_use():
-    """True when allauth is installed and at least one provider is configured."""
+    """True when social auth is enabled, allauth is installed, and providers are configured."""
+    if not socialauth_enabled():
+        return False
     if not _allauth_installed():
         return False
     explicit = getattr(settings, "LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS", None)
@@ -67,6 +71,24 @@ def check_socialauth_site_id(app_configs, **kwargs):
             "SITE_ID is not set but SOCIALACCOUNT_PROVIDERS (or LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS) is configured.",
             hint="Add django.contrib.sites to INSTALLED_APPS and set SITE_ID = 1 (or your Site pk).",
             id=SOCIALAUTH_SITE_ID_CHECK_ID,
+        )
+    ]
+
+
+@register()
+def check_admin_2fa_features(app_configs, **kwargs):
+    if not getattr(settings, "ADMIN_2FA_REQUIRED", False):
+        return []
+    if any_2fa_enrollment_enabled():
+        return []
+    return [
+        Warning(
+            "ADMIN_2FA_REQUIRED is True but both LOKDOWN_TOTP_ENABLED and LOKDOWN_PASSKEY_ENABLED are False.",
+            hint=(
+                "Enable at least one of LOKDOWN_TOTP_ENABLED or LOKDOWN_PASSKEY_ENABLED "
+                "so staff can enroll in 2FA for admin access."
+            ),
+            id=ADMIN_2FA_FEATURES_CHECK_ID,
         )
     ]
 

@@ -1,6 +1,7 @@
 import pyotp
 import pytest
 from django.conf import settings
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 
@@ -83,3 +84,15 @@ class TestTotpController:
             format="json",
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    @override_settings(LOKDOWN_TOTP_ENABLED=False)
+    def test_disabled_returns_403(self, auth_client):
+        setup = auth_client.post(reverse("lokdown:setup_totp"), {}, format="json")
+        assert setup.status_code == status.HTTP_403_FORBIDDEN
+
+        verify = auth_client.post(
+            reverse("lokdown:verify_totp_setup"),
+            {"totp_token": "000000"},
+            format="json",
+        )
+        assert verify.status_code == status.HTTP_403_FORBIDDEN

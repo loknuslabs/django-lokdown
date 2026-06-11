@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
+from lokdown.helpers.feature_settings_helper import feature_disabled_message, passkey_enabled
 from lokdown.helpers.auth_flow_helper import (
     admin_passkey_auth_options_payload,
     begin_passkey_authentication,
@@ -27,15 +28,27 @@ from lokdown.serializers import (
 )
 
 
+def _passkey_disabled_response():
+    return Response(
+        ErrorResponseSerializer({"error": feature_disabled_message("Passkey")}).data,
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
 @extend_schema(
     summary="Setup passkey for authenticated user",
     tags=["2FA Passkey"],
     request=PasskeySetupRequestSerializer,
-    responses={200: PasskeySetupResponseSerializer},
+    responses={
+        200: PasskeySetupResponseSerializer,
+        403: ErrorResponseSerializer,
+    },
 )
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def setup_passkey(request):
+    if not passkey_enabled():
+        return _passkey_disabled_response()
     result = begin_passkey_registration(request.user, request)
     if isinstance(result, Response):
         return result
@@ -49,11 +62,14 @@ def setup_passkey(request):
     responses={
         200: TwoFactorSetupCompleteResponseSerializer,
         401: ErrorResponseSerializer,
+        403: ErrorResponseSerializer,
     },
 )
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def verify_passkey_setup(request):
+    if not passkey_enabled():
+        return _passkey_disabled_response()
     serializer = PasskeyVerifySetupRequestSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

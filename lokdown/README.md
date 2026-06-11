@@ -177,6 +177,26 @@ CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 ```
 
+### Feature flags (disabled by default)
+
+Lokdown ships with optional capabilities turned off. Enable only what your project needs:
+
+```python
+LOKDOWN_TOTP_ENABLED = True        # TOTP enrollment and login (backup codes on setup)
+LOKDOWN_PASSKEY_ENABLED = True     # WebAuthn passkey enrollment and login (backup codes on setup)
+LOKDOWN_API_KEYS_ENABLED = True    # User API key management and DRF authentication
+LOKDOWN_SOCIALAUTH_ENABLED = True  # OAuth / social account login (requires django-allauth)
+```
+
+When a feature is disabled:
+
+- **Enrollment** endpoints return **403** (e.g. `POST /api/auth/2fa/setup/totp`).
+- **Login** for users who already enrolled keeps working (TOTP, passkey, backup codes).
+- **Social auth** OAuth helpers return **403**; middleware and provider resolution return no providers.
+- **`GET /api/auth/2fa/status`** includes `totp_available` and `passkey_available` so clients know what can be enrolled.
+
+If `ADMIN_2FA_REQUIRED = True`, enable at least one of `LOKDOWN_TOTP_ENABLED` or `LOKDOWN_PASSKEY_ENABLED` so staff can enroll (`lokdown.W005`).
+
 ### Optional 2FA settings
 
 ```python
@@ -224,6 +244,9 @@ Clients send `Authorization: Api-Key lk_<prefix>.<secret>`. Key management endpo
 | `BACKUP_CODES_COUNT` | `8` | Number of backup codes |
 | `BACKUP_CODE_LENGTH` | `10` | Backup code length |
 | `ADMIN_2FA_REQUIRED` | `False` | Require 2FA for admin users |
+| `LOKDOWN_TOTP_ENABLED` | `False` | Enable TOTP enrollment and login |
+| `LOKDOWN_PASSKEY_ENABLED` | `False` | Enable passkey enrollment and login |
+| `LOKDOWN_SOCIALAUTH_ENABLED` | `False` | Enable OAuth / social account login |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | — | Comma-separated CSRF trusted origins |
 | `SOCIALACCOUNT_LOGIN_AUTO_REDIRECT_PROVIDER` | — | Skip `/accounts/login/` HTML (`google`, `github`, …) |
 | `LOKDOWN_API_KEYS_ENABLED` | `False` | Enable API key generation and authentication |
@@ -761,6 +784,7 @@ Lokdown registers warnings when `DEBUG` is False (and for social auth when confi
 | `lokdown.W002` | `WEBAUTHN_ORIGINS` not configured |
 | `lokdown.W003` | `SITE_ID` missing (social auth) |
 | `lokdown.W004` | `SOCIALACCOUNT_ADAPTER` not set to lokdown adapter |
+| `lokdown.W005` | `ADMIN_2FA_REQUIRED` but no TOTP/passkey enrollment enabled |
 
 ```bash
 python manage.py check

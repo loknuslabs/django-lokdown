@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -90,3 +91,17 @@ class TestPasskeyController:
         response = api_client.post(reverse("lokdown:admin_2fa_auth_options"))
         assert response.status_code == status.HTTP_200_OK
         assert "challenge" in response.data
+
+    @override_settings(LOKDOWN_PASSKEY_ENABLED=False)
+    def test_setup_disabled_returns_403(self, auth_client):
+        response = auth_client.post(reverse("lokdown:setup_passkey"), {}, format="json")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @override_settings(LOKDOWN_PASSKEY_ENABLED=False)
+    def test_verify_setup_disabled_returns_403(self, auth_client):
+        response = auth_client.post(
+            reverse("lokdown:verify_passkey_setup"),
+            {"session_id": "sess-1", "passkey_response": {"id": "x"}},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN

@@ -208,7 +208,10 @@ REST_FRAMEWORK = {
     ],
 }
 
-# User-tied API keys (additional auth; not a login replacement)
+# Lokdown feature flags (example project enables all capabilities)
+LOKDOWN_TOTP_ENABLED = os.environ.get("LOKDOWN_TOTP_ENABLED", "true").lower() == "true"
+LOKDOWN_PASSKEY_ENABLED = os.environ.get("LOKDOWN_PASSKEY_ENABLED", "true").lower() == "true"
+LOKDOWN_SOCIALAUTH_ENABLED = os.environ.get("LOKDOWN_SOCIALAUTH_ENABLED", "true").lower() == "true"
 LOKDOWN_API_KEYS_ENABLED = os.environ.get("LOKDOWN_API_KEYS_ENABLED", "true").lower() == "true"
 LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS = int(os.environ.get("LOKDOWN_API_KEY_MAX_LIFESPAN_DAYS", "365"))
 LOKDOWN_API_KEY_ALLOW_INDEFINITE = os.environ.get("LOKDOWN_API_KEY_ALLOW_INDEFINITE", "true").lower() == "true"

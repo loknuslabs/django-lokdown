@@ -48,6 +48,7 @@ from lokdown.helpers.totp_helper import (
     verify_totp_login,
     verify_totp_token_setup,
 )
+from lokdown.helpers.feature_settings_helper import passkey_enabled, totp_enabled
 from lokdown.helpers.twofa_helper import is_2fa_enabled, serialize_webauthn_options
 from lokdown.models import LoginSession, UserTimeBasedOneTimePasswords
 
@@ -101,8 +102,8 @@ def build_pre_2fa_payload(user: User, session_id: str) -> dict[str, Any]:
     return {
         "session_id": session_id,
         "requires_2fa": True,
-        "totp_enabled": has_totp_enabled(user),
-        "passkey_enabled": has_passkey_enabled(user),
+        "totp_enabled": totp_enabled() and has_totp_enabled(user),
+        "passkey_enabled": passkey_enabled() and has_passkey_enabled(user),
         "backup_codes_available": user_backup_codes_exist(user),
     }
 
@@ -220,6 +221,8 @@ def complete_login_with_tokens(
 
 
 def begin_totp_setup(user: User) -> dict[str, Any]:
+    if not totp_enabled():
+        raise ValueError("TOTP support is disabled")
     secret = generate_totp_secret()
     store_pending_totp_secret(user, secret)
     qr_base64 = generate_totp_qr_code(secret, user)
@@ -236,6 +239,8 @@ def begin_totp_setup(user: User) -> dict[str, Any]:
 
 
 def complete_totp_setup(user: User, totp_token: str) -> tuple[bool, str | None, list[str]]:
+    if not totp_enabled():
+        return False, "TOTP support is disabled", []
     if not totp_token:
         return False, "Missing token", []
     if has_totp_enabled(user):
@@ -253,6 +258,11 @@ def complete_totp_setup(user: User, totp_token: str) -> tuple[bool, str | None, 
 
 
 def begin_passkey_registration(user: User, request) -> dict[str, Any] | Response:
+    if not passkey_enabled():
+        return Response(
+            {"error": "Passkey support is disabled"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     options = generate_passkey_options(user, request)
     if not options:
         return Response(
@@ -281,6 +291,8 @@ def complete_passkey_registration(
     create_backup_codes_if_missing: bool = True,
     request=None,
 ) -> tuple[bool, str | None, list[str]]:
+    if not passkey_enabled():
+        return False, "Passkey support is disabled", []
     try:
         session = LoginSession.objects.get(
             session_id=session_id,

@@ -135,24 +135,32 @@
         Please choose a 2FA method to continue.
     </div>
     
+    {% if totp_available or passkey_available %}
     <p>To access the admin panel, you must set up two-factor authentication. Choose one of the following methods:</p>
+    {% else %}
+    <p>No 2FA enrollment methods are enabled. Ask an administrator to set <code>LOKDOWN_TOTP_ENABLED</code> or <code>LOKDOWN_PASSKEY_ENABLED</code> in project settings.</p>
+    {% endif %}
     
     <form method="post" id="setup-form">
         {% csrf_token %}
         
+        {% if totp_available %}
         <div class="setup-option" onclick="selectOption('totp')">
             <input type="radio" name="setup_type" value="totp" id="totp" style="display: none;">
             <h3>📱 Authenticator App (TOTP)</h3>
             <p>Use an authenticator app like Google Authenticator, Authy, or Microsoft Authenticator. 
             This is the most common and secure method.</p>
         </div>
+        {% endif %}
         
+        {% if passkey_available %}
         <div class="setup-option" onclick="selectOption('passkey')">
             <input type="radio" name="setup_type" value="passkey" id="passkey" style="display: none;">
             <h3>🔑 Passkey (WebAuthn)</h3>
             <p>Use a passkey with your device's built-in security (fingerprint, face ID, or PIN). 
             Works with YubiKeys, Apple Passwords, Google Password Manager, and more.</p>
         </div>
+        {% endif %}
     </form>
     
     <div id="loading" class="loading" style="display: none;">

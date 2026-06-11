@@ -24,6 +24,7 @@ from lokdown.helpers.totp_helper import (
     get_or_create_totp,
     has_totp_enabled,
 )
+from lokdown.helpers.feature_settings_helper import passkey_enabled, totp_enabled
 from lokdown.helpers.twofa_helper import get_available_2fa_methods, is_2fa_enabled
 
 _MODEL_BACKEND = "django.contrib.auth.backends.ModelBackend"
@@ -96,16 +97,30 @@ def admin_2fa_setup_view(request):
     if request.method == "POST":
         setup_type = request.POST.get("setup_type")
         if setup_type == "totp":
-            payload = begin_totp_setup(user)
+            if not totp_enabled():
+                messages.error(request, "TOTP support is disabled.")
+                return redirect("admin_2fa_setup")
+            try:
+                payload = begin_totp_setup(user)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return redirect("admin_2fa_setup")
             return render(
                 request,
                 "2fa_setup_totp.html",
                 {"qr_code": payload["qr_code"], "secret": payload["secret"]},
             )
         if setup_type == "passkey":
+            if not passkey_enabled():
+                messages.error(request, "Passkey support is disabled.")
+                return redirect("admin_2fa_setup")
             return redirect("admin_2fa_setup_passkey")
 
-    return render(request, "2fa_setup.html")
+    return render(
+        request,
+        "2fa_setup.html",
+        {"totp_available": totp_enabled(), "passkey_available": passkey_enabled()},
+    )
 
 
 def admin_2fa_verify_view(request):
@@ -171,6 +186,10 @@ def admin_2fa_setup_passkey_view(request):
     if not session:
         return redirect("admin_login")
 
+    if not passkey_enabled():
+        messages.error(request, "Passkey support is disabled.")
+        return redirect("admin_2fa_setup")
+
     user = session.user
 
     if request.method == "POST":
@@ -209,6 +228,10 @@ def admin_current_user_totp_setup(request):
     if not request.user.is_authenticated or not request.user.is_staff:
         return redirect("admin_login" if _admin_2fa_required() else "admin:login")
 
+    if not totp_enabled():
+        messages.error(request, "TOTP support is disabled.")
+        return redirect("admin:index")
+
     user = request.user
     get_or_create_totp(user)
 
@@ -224,7 +247,11 @@ def admin_current_user_totp_setup(request):
         messages.error(request, "TOTP is already enabled.")
         return redirect("admin:lokdown_usertimebasedonetimepasswords_changelist")
 
-    payload = begin_totp_setup(user)
+    try:
+        payload = begin_totp_setup(user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("admin:index")
     return render(
         request,
         "2fa_setup_totp.html",
@@ -240,6 +267,10 @@ def admin_current_user_totp_setup(request):
 def admin_current_user_passkey_setup(request):
     if not request.user.is_authenticated or not request.user.is_staff:
         return redirect("admin_login" if _admin_2fa_required() else "admin:login")
+
+    if not passkey_enabled():
+        messages.error(request, "Passkey support is disabled.")
+        return redirect("admin:index")
 
     user = request.user
 
