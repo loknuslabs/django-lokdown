@@ -6,16 +6,29 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from lokdown.helpers.auth_flow_helper import (
+    begin_passkey_registration,
+    begin_totp_setup,
     complete_login_with_tokens,
+    complete_staff_login_passkey_setup,
+    complete_staff_login_totp_setup,
     initiate_password_login,
+    validate_login_session,
+    validate_staff_2fa_setup_session,
     verify_second_factor,
 )
+from lokdown.helpers.feature_settings_helper import passkey_enabled, totp_enabled
 from lokdown.helpers.rate_limit_helper import check_login_init_rate_limit
 from lokdown.serializers import (
     LoginInitRequestSerializer,
+    LoginSessionRequestSerializer,
+    LoginTotpVerifySetupRequestSerializer,
     LoginVerifyRequestSerializer,
+    PasskeySetupResponseSerializer,
+    PasskeyVerifySetupRequestSerializer,
     Pre2FALoginResponseSerializer,
+    StaffLoginSetupCompleteResponseSerializer,
     TokenPairResponseSerializer,
+    TOTPSetupResponseSerializer,
 )
 
 
@@ -93,3 +106,136 @@ def login_verify(request):
 
     payload = complete_login_with_tokens(result, request, key_style="rest")
     return Response(TokenPairResponseSerializer(payload).data)
+
+
+@extend_schema(
+    summary="Begin TOTP setup during staff first login",
+    tags=["Authentication"],
+    request=LoginSessionRequestSerializer,
+    responses={
+        200: TOTPSetupResponseSerializer,
+        400: OpenApiResponse(description="Invalid session"),
+        403: OpenApiResponse(description="Not authorized"),
+    },
+)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def login_setup_totp(request):
+    serializer = LoginSessionRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    session_result = validate_login_session(serializer.validated_data["session_id"])
+    if isinstance(session_result, Response):
+        return session_result
+
+    error_response = validate_staff_2fa_setup_session(session_result)
+    if error_response:
+        return error_response
+    if not totp_enabled():
+        return Response({"error": "TOTP support is disabled"}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        payload = begin_totp_setup(session_result.user)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    return Response(TOTPSetupResponseSerializer(payload).data)
+
+
+@extend_schema(
+    summary="Complete TOTP setup during staff first login",
+    tags=["Authentication"],
+    request=LoginTotpVerifySetupRequestSerializer,
+    responses={
+        200: StaffLoginSetupCompleteResponseSerializer,
+        401: OpenApiResponse(description="Invalid TOTP token"),
+        400: OpenApiResponse(description="Invalid session"),
+        403: OpenApiResponse(description="Not authorized"),
+    },
+)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def login_verify_totp_setup(request):
+    serializer = LoginTotpVerifySetupRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    session_result = validate_login_session(serializer.validated_data["session_id"])
+    if isinstance(session_result, Response):
+        return session_result
+
+    payload = complete_staff_login_totp_setup(
+        session_result,
+        serializer.validated_data["totp_token"],
+        request,
+        key_style="rest",
+    )
+    if isinstance(payload, Response):
+        return payload
+    return Response(StaffLoginSetupCompleteResponseSerializer(payload).data)
+
+
+@extend_schema(
+    summary="Begin passkey setup during staff first login",
+    tags=["Authentication"],
+    request=LoginSessionRequestSerializer,
+    responses={
+        200: PasskeySetupResponseSerializer,
+        400: OpenApiResponse(description="Invalid session"),
+        403: OpenApiResponse(description="Not authorized"),
+    },
+)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def login_setup_passkey(request):
+    serializer = LoginSessionRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    session_result = validate_login_session(serializer.validated_data["session_id"])
+    if isinstance(session_result, Response):
+        return session_result
+
+    error_response = validate_staff_2fa_setup_session(session_result)
+    if error_response:
+        return error_response
+    if not passkey_enabled():
+        return Response({"error": "Passkey support is disabled"}, status=status.HTTP_403_FORBIDDEN)
+
+    result = begin_passkey_registration(session_result.user, request)
+    if isinstance(result, Response):
+        return result
+    return Response(PasskeySetupResponseSerializer(result).data)
+
+
+@extend_schema(
+    summary="Complete passkey setup during staff first login",
+    tags=["Authentication"],
+    request=PasskeyVerifySetupRequestSerializer,
+    responses={
+        200: StaffLoginSetupCompleteResponseSerializer,
+        401: OpenApiResponse(description="Invalid passkey response"),
+        400: OpenApiResponse(description="Invalid session"),
+        403: OpenApiResponse(description="Not authorized"),
+    },
+)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def login_verify_passkey_setup(request):
+    serializer = PasskeyVerifySetupRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    session_result = validate_login_session(serializer.validated_data["session_id"])
+    if isinstance(session_result, Response):
+        return session_result
+
+    payload = complete_staff_login_passkey_setup(
+        session_result,
+        serializer.validated_data["passkey_response"],
+        request,
+        key_style="rest",
+    )
+    if isinstance(payload, Response):
+        return payload
+    return Response(StaffLoginSetupCompleteResponseSerializer(payload).data)

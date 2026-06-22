@@ -2,8 +2,9 @@ from unittest.mock import MagicMock, patch
 
 import pyotp
 import pytest
-from django.utils import timezone
 from datetime import timedelta
+from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 
 from lokdown.helpers.auth_flow_helper import (
@@ -16,9 +17,9 @@ from lokdown.helpers.auth_flow_helper import (
     validate_session_data,
     verify_second_factor,
 )
+from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes
 from lokdown.helpers.totp_helper import get_or_create_totp, read_stored_secret
 from lokdown.models import LoginSession
-from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes
 
 
 @pytest.mark.django_db
@@ -42,8 +43,24 @@ class TestInitiatePasswordLogin:
     def test_returns_pre_2fa_session_when_totp_enabled(self, user_with_totp):
         payload = initiate_password_login(user_with_totp, None)
         assert payload["requires_2fa"] is True
+        assert payload.get("requires_2fa_setup") is False
         assert payload["totp_enabled"] is True
         assert LoginSession.objects.filter(session_id=payload["session_id"]).exists()
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_without_2fa_returns_setup_session(self, staff_user):
+        payload = initiate_password_login(staff_user, None)
+        assert payload["requires_2fa"] is True
+        assert payload["requires_2fa_setup"] is True
+        assert payload["totp_available"] is True
+        assert "access_token" not in payload
+        assert LoginSession.objects.filter(session_id=payload["session_id"]).exists()
+
+    @override_settings(ADMIN_2FA_REQUIRED=False)
+    def test_staff_without_2fa_returns_tokens_when_not_required(self, staff_user):
+        payload = initiate_password_login(staff_user, None)
+        assert payload["requires_2fa"] is False
+        assert "access_token" in payload
 
 
 @pytest.mark.django_db

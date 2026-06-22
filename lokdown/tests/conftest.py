@@ -30,6 +30,11 @@ def other_user(db):
 
 
 @pytest.fixture
+def staff_user(db):
+    return User.objects.create_user(username="staffuser", password="staffpass123", is_staff=True)
+
+
+@pytest.fixture
 def totp_secret():
     return pyotp.random_base32()
 

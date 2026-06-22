@@ -1,4 +1,6 @@
+import pyotp
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 
@@ -57,3 +59,42 @@ class TestAuthController:
             format="json",
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_first_login_requires_2fa_setup(self, api_client, staff_user):
+        response = api_client.post(
+            reverse("lokdown:login_init"),
+            {"username": "staffuser", "password": "staffpass123"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["requires_2fa"] is True
+        assert response.data["requires_2fa_setup"] is True
+        assert "session_id" in response.data
+        assert "access_token" not in response.data
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_first_login_totp_setup_flow(self, api_client, staff_user):
+        init = api_client.post(
+            reverse("lokdown:login_init"),
+            {"username": "staffuser", "password": "staffpass123"},
+            format="json",
+        )
+        setup = api_client.post(
+            reverse("lokdown:login_setup_totp"),
+            {"session_id": init.data["session_id"]},
+            format="json",
+        )
+        assert setup.status_code == status.HTTP_200_OK
+        assert "secret" in setup.data
+
+        token = pyotp.TOTP(setup.data["secret"]).now()
+        verify = api_client.post(
+            reverse("lokdown:login_verify_totp_setup"),
+            {"session_id": init.data["session_id"], "totp_token": token},
+            format="json",
+        )
+        assert verify.status_code == status.HTTP_200_OK
+        assert "access_token" in verify.data
+        assert verify.data["backup_codes"]
+        assert LoginSession.objects.get(session_id=init.data["session_id"]).is_authenticated is True
