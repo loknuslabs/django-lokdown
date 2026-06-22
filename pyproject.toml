@@ -46,6 +46,9 @@ dev = [
     "django-cors-headers>=4.9.0",
     "black==26.5.1",
     "flake8>=7.3.0",
+    "mypy>=1.19.0",
+    "django-stubs>=5.2.0",
+    "djangorestframework-stubs>=3.16.0",
     "pytest>=9.0.3",
     "pytest-django>=4.12.0",
     "pip-audit>=2.10.0",
@@ -68,3 +71,25 @@ lokdown = ["templates/**/*", "migrations/**/*.py"]
 line-length = 120
 skip-string-normalization = true
 target-version = ['py313']
+
+[tool.mypy]
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+files = ["lokdown"]
+exclude = ["lokdown/migrations/", "lokdown/tests/"]
+warn_unused_ignores = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "allauth.*",
+    "django_ratelimit.*",
+    "drf_spectacular.*",
+    "pyotp.*",
+    "qrcode.*",
+    "webauthn.*",
+]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "lokdown.tests.settings"

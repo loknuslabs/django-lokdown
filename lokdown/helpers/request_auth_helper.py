@@ -9,6 +9,8 @@ Supported sources (first match wins):
 
 from __future__ import annotations
 
+from typing import cast
+
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser, User
 from django.utils import timezone
@@ -68,7 +70,7 @@ def get_optional_authenticated_user(request) -> User | None:
     """Return user from DRF auth or Bearer JWT without requiring IsAuthenticated."""
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated and not isinstance(user, AnonymousUser):
-        return user
+        return cast(User, user)
 
     try:
         auth_result = JWTAuthentication().authenticate(request)
@@ -78,7 +80,7 @@ def get_optional_authenticated_user(request) -> User | None:
     if auth_result:
         authenticated_user, _token = auth_result
         if authenticated_user.is_authenticated:
-            return authenticated_user
+            return cast(User, authenticated_user)
     return None
 
 

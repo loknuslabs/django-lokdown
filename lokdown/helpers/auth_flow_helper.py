@@ -199,7 +199,7 @@ def complete_staff_login_totp_setup(
 
     ok, error, backup_codes = complete_totp_setup(session.user, totp_token)
     if not ok:
-        code = status.HTTP_401_UNAUTHORIZED if error == "Invalid TOTP token" else status.HTTP_400_BAD_REQUEST
+        code: int = status.HTTP_401_UNAUTHORIZED if error == "Invalid TOTP token" else status.HTTP_400_BAD_REQUEST
         if error == "Failed to complete TOTP setup":
             code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return Response({"error": error}, status=code)
