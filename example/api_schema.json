@@ -312,7 +312,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid session"
+                        "description": "Invalid session or setup state"
                     },
                     "403": {
                         "description": "Not authorized"
@@ -371,10 +371,13 @@
                         "description": "Invalid TOTP token"
                     },
                     "400": {
-                        "description": "Invalid session"
+                        "description": "Invalid session or setup state"
                     },
                     "403": {
                         "description": "Not authorized"
+                    },
+                    "500": {
+                        "description": "Failed to complete TOTP setup"
                     }
                 }
             }
@@ -427,10 +430,13 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid session"
+                        "description": "Invalid session or setup state"
                     },
                     "403": {
                         "description": "Not authorized"
+                    },
+                    "500": {
+                        "description": "Failed to generate passkey options or session"
                     }
                 }
             }
@@ -486,10 +492,13 @@
                         "description": "Invalid passkey response"
                     },
                     "400": {
-                        "description": "Invalid session"
+                        "description": "Invalid session or setup state"
                     },
                     "403": {
                         "description": "Not authorized"
+                    },
+                    "500": {
+                        "description": "Failed to save passkey credential"
                     }
                 }
             }
@@ -1148,43 +1157,6 @@
             }
         },
         "/api/auth/api-keys": {
-            "get": {
-                "operationId": "auth_api_keys_retrieve",
-                "summary": "List API keys for the authenticated user",
-                "tags": [
-                    "API Keys"
-                ],
-                "security": [
-                    {
-                        "jwtAuth": []
-                    },
-                    {
-                        "lokdownApiKeyAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiKeyListResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "403": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    }
-                }
-            },
             "post": {
                 "operationId": "auth_api_keys_create",
                 "summary": "Create an API key",
@@ -1234,6 +1206,43 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            },
+            "get": {
+                "operationId": "auth_api_keys_retrieve",
+                "summary": "List API keys for the authenticated user",
+                "tags": [
+                    "API Keys"
+                ],
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {
+                        "lokdownApiKeyAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiKeyListResponse"
                                 }
                             }
                         },
