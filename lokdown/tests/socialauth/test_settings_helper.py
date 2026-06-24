@@ -98,6 +98,7 @@ class TestSettingsHelper:
     def test_recommended_settings_include_adapter(self):
         cfg = get_allauth_recommended_settings()
         assert cfg["SOCIALACCOUNT_ADAPTER"] == "lokdown.socialauth.adapters.CustomSocialAccountAdapter"
+        assert cfg["ACCOUNT_ADAPTER"] == "lokdown.socialauth.adapters.CustomAccountAdapter"
         assert "allauth.account.auth_backends.AuthenticationBackend" in cfg["AUTHENTICATION_BACKENDS"]
         assert cfg["LOGIN_REDIRECT_URL"] == "/"
         assert cfg["HEADLESS_ONLY"] is True

@@ -1,7 +1,8 @@
 import pytest
 from django.contrib.auth.models import User
+from django.test import override_settings
 
-from lokdown.socialauth.adapters import CustomSocialAccountAdapter
+from lokdown.socialauth.adapters import CustomAccountAdapter, CustomSocialAccountAdapter
 
 
 class _FakeSocialLogin:
@@ -12,6 +13,16 @@ class _FakeSocialLogin:
 
 @pytest.mark.django_db
 class TestCustomSocialAccountAdapter:
+    @override_settings(LOKDOWN_ALLOW_PUBLIC_REGISTRATION=True)
+    def test_is_open_for_signup_when_enabled(self):
+        adapter = CustomSocialAccountAdapter()
+        assert adapter.is_open_for_signup(None, _FakeSocialLogin()) is True
+
+    @override_settings(LOKDOWN_ALLOW_PUBLIC_REGISTRATION=False)
+    def test_is_open_for_signup_when_disabled(self):
+        adapter = CustomSocialAccountAdapter()
+        assert adapter.is_open_for_signup(None, _FakeSocialLogin()) is False
+
     def test_populate_user_sets_username_from_email(self):
         adapter = CustomSocialAccountAdapter()
         user = User()
@@ -65,3 +76,15 @@ class TestCustomSocialAccountAdapter:
             {"email": long_email},
         )
         assert len(result.username) <= 150
+
+
+class TestCustomAccountAdapter:
+    @override_settings(LOKDOWN_ALLOW_PUBLIC_REGISTRATION=True)
+    def test_is_open_for_signup_when_enabled(self):
+        adapter = CustomAccountAdapter()
+        assert adapter.is_open_for_signup(None) is True
+
+    @override_settings(LOKDOWN_ALLOW_PUBLIC_REGISTRATION=False)
+    def test_is_open_for_signup_when_disabled(self):
+        adapter = CustomAccountAdapter()
+        assert adapter.is_open_for_signup(None) is False

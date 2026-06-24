@@ -9,6 +9,7 @@ WEBAUTHN_ORIGINS_CHECK_ID = "lokdown.W002"
 SOCIALAUTH_SITE_ID_CHECK_ID = "lokdown.W003"
 SOCIALAUTH_ADAPTER_CHECK_ID = "lokdown.W004"
 ADMIN_2FA_FEATURES_CHECK_ID = "lokdown.W005"
+ACCOUNT_ADAPTER_CHECK_ID = "lokdown.W006"
 
 
 @register()
@@ -105,5 +106,21 @@ def check_socialauth_adapter(app_configs, **kwargs):
             f"SOCIALACCOUNT_ADAPTER is not set to {expected}.",
             hint="Set SOCIALACCOUNT_ADAPTER so social signups receive email-based usernames from lokdown.",
             id=SOCIALAUTH_ADAPTER_CHECK_ID,
+        )
+    ]
+
+
+@register()
+def check_account_adapter(app_configs, **kwargs):
+    if not _socialauth_in_use():
+        return []
+    expected = "lokdown.socialauth.adapters.CustomAccountAdapter"
+    if getattr(settings, "ACCOUNT_ADAPTER", None) == expected:
+        return []
+    return [
+        Warning(
+            f"ACCOUNT_ADAPTER is not set to {expected}.",
+            hint="Set ACCOUNT_ADAPTER so public registration is gated by LOKDOWN_ALLOW_PUBLIC_REGISTRATION.",
+            id=ACCOUNT_ADAPTER_CHECK_ID,
         )
     ]

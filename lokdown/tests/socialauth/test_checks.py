@@ -3,8 +3,10 @@ from django.core.checks import run_checks
 from django.test import override_settings
 
 from lokdown.checks import (
+    ACCOUNT_ADAPTER_CHECK_ID,
     SOCIALAUTH_ADAPTER_CHECK_ID,
     SOCIALAUTH_SITE_ID_CHECK_ID,
+    check_account_adapter,
     check_socialauth_adapter,
     check_socialauth_site_id,
 )
@@ -43,6 +45,7 @@ class TestSocialauthChecks:
         with override_settings(SOCIALACCOUNT_PROVIDERS={}):
             assert check_socialauth_site_id(None) == []
             assert check_socialauth_adapter(None) == []
+            assert check_account_adapter(None) == []
 
     @override_settings(
         LOKDOWN_SOCIALAUTH_ENABLED=True,
@@ -69,6 +72,30 @@ class TestSocialauthChecks:
         assert check_socialauth_adapter(None) == []
 
     @override_settings(
+        LOKDOWN_SOCIALAUTH_ENABLED=True,
+        SOCIALACCOUNT_PROVIDERS={"google": {"APPS": [{"client_id": "a", "secret": "b"}]}},
+    )
+    def test_account_adapter_warns_when_not_lokdown_adapter(self, monkeypatch):
+        from django.conf import settings
+
+        monkeypatch.delattr(settings, "LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS", raising=False)
+        with override_settings(ACCOUNT_ADAPTER="allauth.account.adapter.DefaultAccountAdapter"):
+            warnings = check_account_adapter(None)
+        assert len(warnings) == 1
+        assert warnings[0].id == ACCOUNT_ADAPTER_CHECK_ID
+
+    @override_settings(
+        LOKDOWN_SOCIALAUTH_ENABLED=True,
+        ACCOUNT_ADAPTER="lokdown.socialauth.adapters.CustomAccountAdapter",
+        SOCIALACCOUNT_PROVIDERS={"google": {"APPS": [{"client_id": "a", "secret": "b"}]}},
+    )
+    def test_account_adapter_ok_with_lokdown_adapter(self, monkeypatch):
+        from django.conf import settings
+
+        monkeypatch.delattr(settings, "LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS", raising=False)
+        assert check_account_adapter(None) == []
+
+    @override_settings(
         LOKDOWN_SOCIALAUTH_ENABLED=False,
         SOCIALACCOUNT_PROVIDERS={"google": {"APPS": [{"client_id": "a", "secret": "b"}]}},
     )
@@ -79,6 +106,7 @@ class TestSocialauthChecks:
         monkeypatch.delattr(settings, "SITE_ID", raising=False)
         assert check_socialauth_site_id(None) == []
         assert check_socialauth_adapter(None) == []
+        assert check_account_adapter(None) == []
 
     @override_settings(
         LOKDOWN_SOCIALAUTH_ENABLED=True,
