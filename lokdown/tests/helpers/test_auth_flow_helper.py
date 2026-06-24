@@ -63,6 +63,25 @@ class TestInitiatePasswordLogin:
         assert payload["requires_2fa"] is False
         assert "access_token" in payload
 
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_cannot_complete_via_backup_code_without_primary_2fa(self, staff_user):
+        """Regression: staff must enroll TOTP/passkey; backup codes alone cannot finish login."""
+        from lokdown.helpers.backup_codes_helper import store_backup_codes
+
+        store_backup_codes(staff_user, ["BACKUP01", "BACKUP02"])
+        payload = initiate_password_login(staff_user, None)
+        assert payload["requires_2fa_setup"] is True
+        assert "access_token" not in payload
+
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "127.0.0.1", "HTTP_USER_AGENT": "pytest"}
+        result = verify_second_factor(payload["session_id"], None, None, "BACKUP01", request)
+        assert result.status_code == status.HTTP_403_FORBIDDEN
+        assert "Primary 2FA enrollment required" in result.data["error"]
+
+        session = LoginSession.objects.get(session_id=payload["session_id"])
+        assert session.is_authenticated is False
+
 
 @pytest.mark.django_db
 class TestVerifySecondFactor:
@@ -91,20 +110,6 @@ class TestVerifySecondFactor:
         request.META = {"REMOTE_ADDR": "127.0.0.1", "HTTP_USER_AGENT": "pytest"}
         result = verify_second_factor(login_session.session_id, None, None, "BACKUP01", request)
         assert isinstance(result, LoginSession)
-
-    @override_settings(ADMIN_2FA_REQUIRED=True)
-    def test_backup_code_rejected_without_primary_2fa(self, staff_user):
-        from lokdown.helpers.backup_codes_helper import store_backup_codes
-
-        store_backup_codes(staff_user, ["BACKUP01", "BACKUP02"])
-        payload = initiate_password_login(staff_user, None)
-        assert payload["requires_2fa_setup"] is True
-
-        request = MagicMock()
-        request.META = {"REMOTE_ADDR": "127.0.0.1", "HTTP_USER_AGENT": "pytest"}
-        result = verify_second_factor(payload["session_id"], None, None, "BACKUP01", request)
-        assert result.status_code == status.HTTP_403_FORBIDDEN
-        assert "Primary 2FA enrollment required" in result.data["error"]
 
     def test_expired_session_returns_400(self, user_with_totp):
         session = LoginSession.objects.create(

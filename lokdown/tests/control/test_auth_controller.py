@@ -102,6 +102,7 @@ class TestAuthController:
 
     @override_settings(ADMIN_2FA_REQUIRED=True)
     def test_staff_login_verify_rejects_backup_code_without_primary_2fa(self, api_client, staff_user):
+        """Regression: /auth/verify must not issue JWTs via backup code before primary 2FA enrollment."""
         from lokdown.helpers.backup_codes_helper import store_backup_codes
 
         store_backup_codes(staff_user, ["BACKUP01", "BACKUP02"])
@@ -111,6 +112,7 @@ class TestAuthController:
             format="json",
         )
         assert init.data["requires_2fa_setup"] is True
+        assert "access_token" not in init.data
 
         verify = api_client.post(
             reverse("lokdown:login_verify"),
@@ -119,6 +121,8 @@ class TestAuthController:
         )
         assert verify.status_code == status.HTTP_403_FORBIDDEN
         assert "Primary 2FA enrollment required" in verify.data["error"]
+        assert "access_token" not in verify.data
+        assert LoginSession.objects.get(session_id=init.data["session_id"]).is_authenticated is False
 
     @override_settings(ADMIN_2FA_REQUIRED=True)
     @patch("lokdown.helpers.auth_flow_helper.save_passkey_to_database", return_value=True)
