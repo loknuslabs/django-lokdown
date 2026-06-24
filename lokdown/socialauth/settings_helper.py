@@ -155,6 +155,7 @@ def get_allauth_recommended_settings() -> dict:
             "allauth.account.auth_backends.AuthenticationBackend",
         ],
         "SOCIALACCOUNT_ADAPTER": "lokdown.socialauth.adapters.CustomSocialAccountAdapter",
+        "ACCOUNT_ADAPTER": "lokdown.socialauth.adapters.CustomAccountAdapter",
         "ACCOUNT_EMAIL_VERIFICATION": "optional",
         "ACCOUNT_LOGIN_METHODS": {"email"},
         "ACCOUNT_SIGNUP_FIELDS": ["email*", "password1*", "password2*"],

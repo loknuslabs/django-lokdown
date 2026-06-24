@@ -186,6 +186,7 @@ LOKDOWN_TOTP_ENABLED = True        # TOTP enrollment and login (backup codes on 
 LOKDOWN_PASSKEY_ENABLED = True     # WebAuthn passkey enrollment and login (backup codes on setup)
 LOKDOWN_API_KEYS_ENABLED = True    # User API key management and DRF authentication
 LOKDOWN_SOCIALAUTH_ENABLED = True  # OAuth / social account login (requires django-allauth)
+LOKDOWN_ALLOW_PUBLIC_REGISTRATION = True  # allow allauth email/OAuth signup (default False)
 ```
 
 When a feature is disabled:
@@ -193,6 +194,7 @@ When a feature is disabled:
 - **Enrollment** endpoints return **403** (e.g. `POST /api/auth/2fa/setup/totp`).
 - **Login** for users who already enrolled keeps working (TOTP, passkey, backup codes).
 - **Social auth** OAuth helpers return **403**; middleware and provider resolution return no providers.
+- **Public registration** (email/password and OAuth signup via allauth) is blocked when `LOKDOWN_ALLOW_PUBLIC_REGISTRATION` is `False`; existing users can still log in.
 - **`GET /api/auth/2fa/status`** includes `totp_available` and `passkey_available` so clients know what can be enrolled.
 
 If `ADMIN_2FA_REQUIRED = True`, enable at least one of `LOKDOWN_TOTP_ENABLED` or `LOKDOWN_PASSKEY_ENABLED` so staff can enroll (`lokdown.W005`).
@@ -247,6 +249,7 @@ Clients send `Authorization: Api-Key lk_<prefix>.<secret>`. Key management endpo
 | `LOKDOWN_TOTP_ENABLED` | `False` | Enable TOTP enrollment and login |
 | `LOKDOWN_PASSKEY_ENABLED` | `False` | Enable passkey enrollment and login |
 | `LOKDOWN_SOCIALAUTH_ENABLED` | `False` | Enable OAuth / social account login |
+| `LOKDOWN_ALLOW_PUBLIC_REGISTRATION` | `False` | Allow allauth email/password and OAuth signup |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | — | Comma-separated CSRF trusted origins |
 | `SOCIALACCOUNT_LOGIN_AUTO_REDIRECT_PROVIDER` | — | Skip `/accounts/login/` HTML (`google`, `github`, …) |
 | `LOKDOWN_API_KEYS_ENABLED` | `False` | Enable API key generation and authentication |
@@ -785,6 +788,7 @@ Lokdown registers warnings when `DEBUG` is False (and for social auth when confi
 | `lokdown.W003` | `SITE_ID` missing (social auth) |
 | `lokdown.W004` | `SOCIALACCOUNT_ADAPTER` not set to lokdown adapter |
 | `lokdown.W005` | `ADMIN_2FA_REQUIRED` but no TOTP/passkey enrollment enabled |
+| `lokdown.W006` | `ACCOUNT_ADAPTER` not set to lokdown adapter |
 
 ```bash
 python manage.py check

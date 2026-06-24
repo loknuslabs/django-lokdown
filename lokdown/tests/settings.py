@@ -34,6 +34,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 SOCIALACCOUNT_ADAPTER = "lokdown.socialauth.adapters.CustomSocialAccountAdapter"
+ACCOUNT_ADAPTER = "lokdown.socialauth.adapters.CustomAccountAdapter"
 
 SOCIALACCOUNT_PROVIDERS = {
     "dummy": {},

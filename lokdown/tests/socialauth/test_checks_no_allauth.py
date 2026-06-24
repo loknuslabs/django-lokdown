@@ -2,7 +2,7 @@
 
 from django.test import override_settings
 
-from lokdown.checks import check_socialauth_adapter, check_socialauth_site_id
+from lokdown.checks import check_account_adapter, check_socialauth_adapter, check_socialauth_site_id
 
 
 class TestChecksWithoutAllauth:
@@ -13,3 +13,4 @@ class TestChecksWithoutAllauth:
     def test_socialauth_checks_skip_when_allauth_not_installed(self):
         assert check_socialauth_site_id(None) == []
         assert check_socialauth_adapter(None) == []
+        assert check_account_adapter(None) == []

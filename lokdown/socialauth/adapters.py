@@ -1,8 +1,21 @@
+from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+
+from lokdown.helpers.feature_settings_helper import public_registration_enabled
+
+
+class CustomAccountAdapter(DefaultAccountAdapter):
+    """Gate email/password signup via LOKDOWN_ALLOW_PUBLIC_REGISTRATION."""
+
+    def is_open_for_signup(self, request):
+        return public_registration_enabled()
 
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     """Set username from email when creating a user via social signup (e.g. Google)."""
+
+    def is_open_for_signup(self, request, sociallogin):
+        return public_registration_enabled()
 
     def populate_user(self, request, sociallogin, data):
         user = super().populate_user(request, sociallogin, data)

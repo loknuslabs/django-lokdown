@@ -100,6 +100,7 @@ Optional capabilities are **disabled by default**. Set the flags you need in `se
 | `LOKDOWN_PASSKEY_ENABLED` | `False` | Passkey setup/login APIs and admin enrollment; backup codes generated on setup |
 | `LOKDOWN_API_KEYS_ENABLED` | `False` | API key CRUD and `LokdownApiKeyAuthentication` |
 | `LOKDOWN_SOCIALAUTH_ENABLED` | `False` | OAuth provider helpers and session bridge (`/api/auth/oauth/*`) |
+| `LOKDOWN_ALLOW_PUBLIC_REGISTRATION` | `False` | allauth email/password and OAuth signup (invite-only when `False`) |
 
 When a flag is `False`, enrollment endpoints return **403**. Users who already enrolled can still complete login with that factor. Backup codes remain available at login when the user has codes, regardless of enrollment flags.
 
@@ -135,6 +136,7 @@ WEBAUTHN_ORIGIN = "http://localhost:8000"  # optional; first origin if ORIGINS u
 LOKDOWN_TOTP_ENABLED = False          # TOTP enrollment/login; backup codes on setup
 LOKDOWN_PASSKEY_ENABLED = False       # passkey enrollment/login; backup codes on setup
 LOKDOWN_SOCIALAUTH_ENABLED = False    # OAuth / social login (requires django-allauth)
+LOKDOWN_ALLOW_PUBLIC_REGISTRATION = False  # allauth signup; staff create users when False
 LOKDOWN_API_KEYS_ENABLED = False      # user API keys
 
 # 2FA behaviour
@@ -273,9 +275,22 @@ MIDDLEWARE = [
 2. `RedirectAuthenticatedSocialLoginMiddleware`
 3. `AutoRedirectAccountLoginToSocialMiddleware`
 
-### CustomSocialAccountAdapter
+### CustomSocialAccountAdapter and CustomAccountAdapter
 
-Set in recommended settings as `SOCIALACCOUNT_ADAPTER = "lokdown.socialauth.adapters.CustomSocialAccountAdapter"`.
+Recommended settings set:
+
+- `SOCIALACCOUNT_ADAPTER = "lokdown.socialauth.adapters.CustomSocialAccountAdapter"`
+- `ACCOUNT_ADAPTER = "lokdown.socialauth.adapters.CustomAccountAdapter"`
+
+`LOKDOWN_ALLOW_PUBLIC_REGISTRATION` (default `False`) gates both adapters via `is_open_for_signup()`. When `False`, allauth rejects new email/password and OAuth signups; existing users can still log in. Staff-provisioned users with a matching email can still complete first OAuth login via `SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT`.
+
+Map from an environment variable in your host project:
+
+```python
+LOKDOWN_ALLOW_PUBLIC_REGISTRATION = os.environ.get(
+    "ALLOW_PUBLIC_REGISTRATION", "false"
+).lower() in ("true", "1", "yes")
+```
 
 On social signup, `populate_user()` sets `username` from the provider email (truncated to 150 characters). If that username exists, it appends `_1`, `_2`, etc. Import from:
 
@@ -335,7 +350,7 @@ Opt out of auto-redirect to see the local login form: `GET /accounts/login/?loca
 
 ### System checks
 
-Lokdown registers two social-auth checks (`lokdown.W003`, `lokdown.W004`). They run **only when both** are true:
+Lokdown registers three social-auth checks (`lokdown.W003`, `lokdown.W004`, `lokdown.W006`). They run **only when both** are true:
 
 1. `"allauth"` is in `INSTALLED_APPS`
 2. At least one provider is configured (`SOCIALACCOUNT_PROVIDERS` with `APPS`/`APP`, non-empty `LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS`, or admin `SocialApp` records)
@@ -344,6 +359,7 @@ Lokdown registers two social-auth checks (`lokdown.W003`, `lokdown.W004`). They 
 |----------|------------------|
 | `lokdown.W003` | `SITE_ID` is not set |
 | `lokdown.W004` | `SOCIALACCOUNT_ADAPTER` is not `lokdown.socialauth.adapters.CustomSocialAccountAdapter` |
+| `lokdown.W006` | `ACCOUNT_ADAPTER` is not `lokdown.socialauth.adapters.CustomAccountAdapter` |
 
 If you have `SOCIALACCOUNT_PROVIDERS` in settings but forgot to add allauth apps, checks are **skipped** (no crash on `manage.py check`).
 
@@ -582,7 +598,9 @@ Passkey flow still requires `POST /api/auth/2fa/passkey/options` before verify. 
 
 | Event | What happens |
 |-------|----------------|
-| **First OAuth login** | allauth creates `User`; adapter sets `username` from email; `SocialAccount` created |
+| **First OAuth login** (`LOKDOWN_ALLOW_PUBLIC_REGISTRATION=True`) | allauth creates `User`; adapter sets `username` from email; `SocialAccount` created |
+| **First OAuth login** (`LOKDOWN_ALLOW_PUBLIC_REGISTRATION=False`) | Signup rejected unless the user was pre-created (e.g. by staff) and email auto-connect applies |
+| **Headless email signup** | Allowed only when `LOKDOWN_ALLOW_PUBLIC_REGISTRATION=True` |
 | **Repeat OAuth login** | allauth matches existing `SocialAccount` / email; same `User` gets Django session |
 | **Email already exists (local account)** | Controlled by allauth settings (`SOCIALACCOUNT_EMAIL_AUTHENTICATION`, etc. in `get_allauth_recommended_settings()`) — may auto-connect or require account pairing per your allauth config |
 
@@ -1586,7 +1604,7 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 7. **Verification before save** — TOTP secret and passkey credentials are persisted only after a successful verification step.
 8. **Dependency supply chain** — Pin `django-lokdown` and its transitive dependencies in production (`pip-tools`, `uv lock`, etc.) and run [`pip-audit`](https://pypi.org/project/pip-audit/) on your lockfile in CI.
 9. **`security_audit --cleanup`** — Dry-run by default; pass `--force` with `--cleanup` to delete expired sessions, old failed backup attempts, and stale passkeys.
-10. **Social auth checks** — `lokdown.W003`/`W004` apply only when `LOKDOWN_SOCIALAUTH_ENABLED` is `True`, `"allauth"` is in `INSTALLED_APPS`, and providers are configured; projects without OAuth can omit allauth entirely.
+10. **Social auth checks** — `lokdown.W003`/`W004`/`W006` apply only when `LOKDOWN_SOCIALAUTH_ENABLED` is `True`, `"allauth"` is in `INSTALLED_APPS`, and providers are configured; projects without OAuth can omit allauth entirely.
 11. **Admin 2FA enrollment** — `lokdown.W005` warns when `ADMIN_2FA_REQUIRED` is `True` but both `LOKDOWN_TOTP_ENABLED` and `LOKDOWN_PASSKEY_ENABLED` are `False`.
 12. **Staff API first login** — When `ADMIN_2FA_REQUIRED = True`, staff cannot obtain JWTs via the API until TOTP or passkey enrollment completes during login. This mirrors the Django admin portal behaviour.
 
@@ -1612,7 +1630,7 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 - [ ] (Optional) SPA: `GET /_allauth/browser/v1/config` → POST headless redirect → `POST /api/auth/oauth/callback` with session cookie and CSRF token (see [SPA-only frontend](#spa-only-frontend-no-django-html-templates)).
 - [ ] (Optional) Set `CSRF_TRUSTED_ORIGINS` and `CORS_ALLOWED_ORIGINS` when the frontend is on a different origin.
 - [ ] (Optional) Regenerate `api_schema.json` after API changes: `python manage.py spectacular --file api_schema.json`.
-- [ ] (Optional) Run `python manage.py check` after enabling social auth (expect `lokdown.W003`/`W004` if misconfigured).
+- [ ] (Optional) Run `python manage.py check` after enabling social auth (expect `lokdown.W003`/`W004`/`W006` if misconfigured).
 
 ---
 

@@ -25,6 +25,11 @@ def admin_2fa_required() -> bool:
     return bool(getattr(settings, "ADMIN_2FA_REQUIRED", False))
 
 
+def public_registration_enabled() -> bool:
+    """Return True when allauth may create new users via email/password or OAuth signup."""
+    return bool(getattr(settings, "LOKDOWN_ALLOW_PUBLIC_REGISTRATION", False))
+
+
 def any_2fa_enrollment_enabled() -> bool:
     """Return True when at least one primary 2FA enrollment method is enabled."""
     return passkey_enabled() or totp_enabled()
