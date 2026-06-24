@@ -68,6 +68,8 @@ globals().update(get_allauth_recommended_settings())
 
 SITE_ID = 1
 
+LOKDOWN_ALLOW_PUBLIC_REGISTRATION = os.environ.get("ALLOW_PUBLIC_REGISTRATION", "true").lower() in ("true", "1", "yes")
+
 SOCIALACCOUNT_PROVIDERS = build_socialaccount_providers()
 
 LOKDOWN_SOCIALAUTH_ENABLED_PROVIDERS = SOCIALAUTH_SUPPORTED_PROVIDERS
