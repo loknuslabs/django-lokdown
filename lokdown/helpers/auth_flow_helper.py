@@ -48,7 +48,7 @@ from lokdown.helpers.totp_helper import (
     verify_totp_login,
     verify_totp_token_setup,
 )
-from lokdown.helpers.feature_settings_helper import passkey_enabled, totp_enabled
+from lokdown.helpers.feature_settings_helper import admin_2fa_required, passkey_enabled, totp_enabled
 from lokdown.helpers.twofa_helper import is_2fa_enabled, serialize_webauthn_options
 from lokdown.models import LoginSession, UserTimeBasedOneTimePasswords
 
@@ -98,13 +98,38 @@ def require_self_user(request_user: User, user_id: int) -> User | Response:
     return request_user
 
 
+def staff_must_setup_2fa(user: User) -> bool:
+    """Staff with ADMIN_2FA_REQUIRED who have not enrolled a primary 2FA method yet."""
+    return admin_2fa_required() and user.is_staff and not is_2fa_enabled(user)
+
+
+def login_requires_2fa_step(user: User) -> bool:
+    """True when password/OAuth login must continue with verify or enrollment."""
+    return is_2fa_enabled(user) or staff_must_setup_2fa(user)
+
+
 def build_pre_2fa_payload(user: User, session_id: str) -> dict[str, Any]:
     return {
         "session_id": session_id,
         "requires_2fa": True,
+        "requires_2fa_setup": False,
         "totp_enabled": totp_enabled() and has_totp_enabled(user),
         "passkey_enabled": passkey_enabled() and has_passkey_enabled(user),
         "backup_codes_available": user_backup_codes_exist(user),
+    }
+
+
+def build_pre_2fa_setup_payload(user: User, session_id: str) -> dict[str, Any]:
+    """Pending login session for staff who must enroll 2FA before receiving JWTs."""
+    return {
+        "session_id": session_id,
+        "requires_2fa": True,
+        "requires_2fa_setup": True,
+        "totp_enabled": False,
+        "passkey_enabled": False,
+        "backup_codes_available": False,
+        "totp_available": totp_enabled(),
+        "passkey_available": passkey_enabled(),
     }
 
 
@@ -121,15 +146,115 @@ def build_jwt_token_payload(user: User, *, key_style: TokenKeyStyle = "rest") ->
     }
 
 
+def validate_staff_2fa_setup_user(user: User) -> Response | None:
+    """Ensure a user may enroll 2FA during a pending staff login."""
+    if not user.is_staff:
+        return Response({"error": "Not authorized for this user"}, status=status.HTTP_403_FORBIDDEN)
+    if not admin_2fa_required():
+        return Response({"error": "Admin 2FA is not required"}, status=status.HTTP_400_BAD_REQUEST)
+    if is_2fa_enabled(user):
+        return Response(
+            {"error": "2FA is already enabled; complete verification instead"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return None
+
+
+def validate_staff_2fa_setup_session(session: LoginSession) -> Response | None:
+    """Ensure a pending LoginSession is valid for staff first-time 2FA enrollment."""
+    if session.is_authenticated:
+        return Response({"error": "Session already used"}, status=status.HTTP_400_BAD_REQUEST)
+    return validate_staff_2fa_setup_user(session.user)
+
+
 def initiate_password_login(user: User, request) -> dict[str, Any]:
     """After valid password auth: return either JWT payload or pre-2FA session payload."""
-    if not is_2fa_enabled(user):
+    if not login_requires_2fa_step(user):
         return build_jwt_token_payload(user)
 
     session_id = create_authentication_session(user, request)
     if not session_id:
         raise RuntimeError("Failed to create authentication session")
+    if staff_must_setup_2fa(user):
+        return build_pre_2fa_setup_payload(user, session_id)
     return build_pre_2fa_payload(user, session_id)
+
+
+def complete_staff_login_totp_setup(
+    session: LoginSession,
+    totp_token: str,
+    request,
+    *,
+    key_style: TokenKeyStyle = "rest",
+) -> dict[str, Any] | Response:
+    """Complete TOTP enrollment during staff first login and issue JWTs."""
+    error_response = validate_staff_2fa_setup_session(session)
+    if error_response:
+        return error_response
+    if not totp_enabled():
+        return Response(
+            {"error": "TOTP support is disabled"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    ok, error, backup_codes = complete_totp_setup(session.user, totp_token)
+    if not ok:
+        code: int = status.HTTP_401_UNAUTHORIZED if error == "Invalid TOTP token" else status.HTTP_400_BAD_REQUEST
+        if error == "Failed to complete TOTP setup":
+            code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return Response({"error": error}, status=code)
+
+    payload = complete_login_with_tokens(
+        session,
+        request,
+        key_style=key_style,
+        message="TOTP setup verified successfully",
+    )
+    payload["backup_codes"] = backup_codes
+    return payload
+
+
+def complete_staff_login_passkey_setup(
+    session: LoginSession,
+    passkey_response: dict | str,
+    request,
+    *,
+    key_style: TokenKeyStyle = "rest",
+) -> dict[str, Any] | Response:
+    """Complete passkey enrollment during staff first login and issue JWTs."""
+    if session.is_authenticated:
+        return Response({"error": "Session already used"}, status=status.HTTP_400_BAD_REQUEST)
+
+    error_response = validate_staff_2fa_setup_user(session.user)
+    if error_response:
+        return error_response
+    if not passkey_enabled():
+        return Response(
+            {"error": "Passkey support is disabled"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    ok, error, backup_codes = complete_passkey_registration(
+        session.user,
+        session.session_id,
+        passkey_response,
+        create_backup_codes_if_missing=True,
+        request=request,
+    )
+    if not ok:
+        code: int = status.HTTP_401_UNAUTHORIZED if error == "Invalid passkey response" else status.HTTP_400_BAD_REQUEST
+        if error == "Failed to save passkey credential":
+            code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return Response({"error": error}, status=code)
+
+    payload = complete_login_with_tokens(
+        session,
+        request,
+        key_style=key_style,
+        message="Passkey setup verified successfully",
+    )
+    payload["backup_codes"] = backup_codes
+    return payload
 
 
 def _mark_session_verified(session: LoginSession, method: str) -> None:
@@ -190,6 +315,11 @@ def verify_second_factor(
         return Response({"error": "Invalid passkey response"}, status=status.HTTP_401_UNAUTHORIZED)
 
     if backup_code:
+        if not is_2fa_enabled(session.user):
+            return Response(
+                {"error": "Primary 2FA enrollment required before using backup codes"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         rate_limit_response = check_backup_rate_limit(request)
         if rate_limit_response:
             return rate_limit_response
@@ -402,6 +532,8 @@ def verify_admin_second_factor(
         return False, "Invalid passkey response"
 
     if backup_code:
+        if not is_2fa_enabled(session.user):
+            return False, "Primary 2FA enrollment required before using backup codes"
         rate_limit_response = check_backup_rate_limit(request)
         if rate_limit_response:
             return False, "Too many backup code attempts"

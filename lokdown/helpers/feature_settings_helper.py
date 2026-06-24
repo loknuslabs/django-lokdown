@@ -20,6 +20,11 @@ def socialauth_enabled() -> bool:
     return bool(getattr(settings, "LOKDOWN_SOCIALAUTH_ENABLED", False))
 
 
+def admin_2fa_required() -> bool:
+    """Return True when staff must use 2FA for admin and API login."""
+    return bool(getattr(settings, "ADMIN_2FA_REQUIRED", False))
+
+
 def any_2fa_enrollment_enabled() -> bool:
     """Return True when at least one primary 2FA enrollment method is enabled."""
     return passkey_enabled() or totp_enabled()

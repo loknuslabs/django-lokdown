@@ -58,9 +58,12 @@ class OAuthSessionBridgeResponseSerializer(serializers.Serializer):
     """JWT pair or pre-2FA session after OAuth (same shape as password login)."""
 
     requires_2fa = serializers.BooleanField()
+    requires_2fa_setup = serializers.BooleanField(required=False, default=False)
     access_token = serializers.CharField(required=False)
     refresh_token = serializers.CharField(required=False)
     session_id = serializers.CharField(required=False)
     totp_enabled = serializers.BooleanField(required=False)
     passkey_enabled = serializers.BooleanField(required=False)
     backup_codes_available = serializers.BooleanField(required=False)
+    totp_available = serializers.BooleanField(required=False)
+    passkey_available = serializers.BooleanField(required=False)

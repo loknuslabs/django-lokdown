@@ -24,14 +24,10 @@ from lokdown.helpers.totp_helper import (
     get_or_create_totp,
     has_totp_enabled,
 )
-from lokdown.helpers.feature_settings_helper import passkey_enabled, totp_enabled
+from lokdown.helpers.feature_settings_helper import admin_2fa_required, passkey_enabled, totp_enabled
 from lokdown.helpers.twofa_helper import get_available_2fa_methods, is_2fa_enabled
 
 _MODEL_BACKEND = "django.contrib.auth.backends.ModelBackend"
-
-
-def _admin_2fa_required() -> bool:
-    return getattr(settings, "ADMIN_2FA_REQUIRED", False)
 
 
 def _login_staff_user(request, user) -> None:
@@ -60,7 +56,7 @@ def admin_login_view(request):
 
         if user is None or not user.is_staff:
             messages.error(request, "Invalid credentials or insufficient permissions.")
-        elif not _admin_2fa_required():
+        elif not admin_2fa_required():
             _login_staff_user(request, user)
             return redirect("admin:index")
         else:
@@ -226,7 +222,7 @@ def admin_2fa_setup_passkey_view(request):
 
 def admin_current_user_totp_setup(request):
     if not request.user.is_authenticated or not request.user.is_staff:
-        return redirect("admin_login" if _admin_2fa_required() else "admin:login")
+        return redirect("admin_login" if admin_2fa_required() else "admin:login")
 
     if not totp_enabled():
         messages.error(request, "TOTP support is disabled.")
@@ -266,7 +262,7 @@ def admin_current_user_totp_setup(request):
 
 def admin_current_user_passkey_setup(request):
     if not request.user.is_authenticated or not request.user.is_staff:
-        return redirect("admin_login" if _admin_2fa_required() else "admin:login")
+        return redirect("admin_login" if admin_2fa_required() else "admin:login")
 
     if not passkey_enabled():
         messages.error(request, "Passkey support is disabled.")
@@ -314,7 +310,7 @@ def admin_current_user_passkey_setup(request):
 
 def admin_current_user_backup_codes(request):
     if not request.user.is_authenticated or not request.user.is_staff:
-        return redirect("admin_login" if _admin_2fa_required() else "admin:login")
+        return redirect("admin_login" if admin_2fa_required() else "admin:login")
 
     if request.method == "POST":
         messages.success(request, "2FA setup completed successfully!")

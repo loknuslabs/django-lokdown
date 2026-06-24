@@ -8,9 +8,9 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 from lokdown.helpers.auth_flow_helper import (
     complete_login_with_tokens,
     initiate_password_login,
+    login_requires_2fa_step,
     verify_second_factor,
 )
-from lokdown.helpers.twofa_helper import is_2fa_enabled
 from lokdown.serializers import (
     SimpleJwtTokenPairResponseSerializer,
     TokenVerify2FARequestSerializer,
@@ -30,7 +30,15 @@ def _flatten_validation_detail(detail):
     """Normalize DRF ValidationError.detail for JSON responses."""
     if not isinstance(detail, dict):
         return detail
-    bool_keys = {"requires_2fa", "totp_enabled", "passkey_enabled", "backup_codes_available"}
+    bool_keys = {
+        "requires_2fa",
+        "requires_2fa_setup",
+        "totp_enabled",
+        "passkey_enabled",
+        "backup_codes_available",
+        "totp_available",
+        "passkey_available",
+    }
     flat = {}
     for key, value in detail.items():
         if isinstance(value, list) and value:
@@ -51,13 +59,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not user:
             raise serializers.ValidationError("Invalid credentials")
 
-        if is_2fa_enabled(user):
+        if login_requires_2fa_step(user):
             request = self.context["request"]
             try:
                 payload = initiate_password_login(user, request)
             except RuntimeError:
                 raise serializers.ValidationError("Failed to create authentication session")
-            raise serializers.ValidationError({**payload, "message": "2FA verification required"})
+            message = "2FA setup required" if payload.get("requires_2fa_setup") else "2FA verification required"
+            raise serializers.ValidationError({**payload, "message": message})
 
         return super().validate(attrs)
 

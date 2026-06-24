@@ -2,7 +2,7 @@
     "openapi": "3.0.3",
     "info": {
         "title": "Django Lokdown",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "contact": {
             "name": "Loknus Labs LLC",
             "email": "loknuslabs@gmail.com",
@@ -260,6 +260,245 @@
                     },
                     "429": {
                         "description": "Too many authentication attempts"
+                    }
+                }
+            }
+        },
+        "/api/auth/login/setup/totp": {
+            "post": {
+                "operationId": "auth_login_setup_totp_create",
+                "summary": "Begin TOTP setup during staff first login",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginSessionRequestRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginSessionRequestRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginSessionRequestRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {
+                        "lokdownApiKeyAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TOTPSetupResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid session or setup state"
+                    },
+                    "403": {
+                        "description": "Not authorized"
+                    }
+                }
+            }
+        },
+        "/api/auth/login/verify/totp": {
+            "post": {
+                "operationId": "auth_login_verify_totp_create",
+                "summary": "Complete TOTP setup during staff first login",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginTotpVerifySetupRequestRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginTotpVerifySetupRequestRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginTotpVerifySetupRequestRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {
+                        "lokdownApiKeyAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StaffLoginSetupCompleteResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Invalid TOTP token"
+                    },
+                    "400": {
+                        "description": "Invalid session or setup state"
+                    },
+                    "403": {
+                        "description": "Not authorized"
+                    },
+                    "500": {
+                        "description": "Failed to complete TOTP setup"
+                    }
+                }
+            }
+        },
+        "/api/auth/login/setup/passkey": {
+            "post": {
+                "operationId": "auth_login_setup_passkey_create",
+                "summary": "Begin passkey setup during staff first login",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginSessionRequestRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginSessionRequestRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginSessionRequestRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {
+                        "lokdownApiKeyAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PasskeySetupResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid session or setup state"
+                    },
+                    "403": {
+                        "description": "Not authorized"
+                    },
+                    "500": {
+                        "description": "Failed to generate passkey options or session"
+                    }
+                }
+            }
+        },
+        "/api/auth/login/verify/passkey": {
+            "post": {
+                "operationId": "auth_login_verify_passkey_create",
+                "summary": "Complete passkey setup during staff first login",
+                "tags": [
+                    "Authentication"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyVerifySetupRequestRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyVerifySetupRequestRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PasskeyVerifySetupRequestRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "jwtAuth": []
+                    },
+                    {
+                        "lokdownApiKeyAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StaffLoginSetupCompleteResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "401": {
+                        "description": "Invalid passkey response"
+                    },
+                    "400": {
+                        "description": "Invalid session or setup state"
+                    },
+                    "403": {
+                        "description": "Not authorized"
+                    },
+                    "500": {
+                        "description": "Failed to save passkey credential"
                     }
                 }
             }
@@ -1318,6 +1557,35 @@
                     "username"
                 ]
             },
+            "LoginSessionRequestRequest": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "session_id"
+                ]
+            },
+            "LoginTotpVerifySetupRequestRequest": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "totp_token": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "session_id",
+                    "totp_token"
+                ]
+            },
             "LoginVerifyRequestRequest": {
                 "type": "object",
                 "properties": {
@@ -1399,6 +1667,10 @@
                     "requires_2fa": {
                         "type": "boolean"
                     },
+                    "requires_2fa_setup": {
+                        "type": "boolean",
+                        "default": false
+                    },
                     "access_token": {
                         "type": "string"
                     },
@@ -1415,6 +1687,12 @@
                         "type": "boolean"
                     },
                     "backup_codes_available": {
+                        "type": "boolean"
+                    },
+                    "totp_available": {
+                        "type": "boolean"
+                    },
+                    "passkey_available": {
                         "type": "boolean"
                     }
                 },
@@ -1535,6 +1813,10 @@
                     "requires_2fa": {
                         "type": "boolean"
                     },
+                    "requires_2fa_setup": {
+                        "type": "boolean",
+                        "default": false
+                    },
                     "totp_enabled": {
                         "type": "boolean"
                     },
@@ -1542,6 +1824,12 @@
                         "type": "boolean"
                     },
                     "backup_codes_available": {
+                        "type": "boolean"
+                    },
+                    "totp_available": {
+                        "type": "boolean"
+                    },
+                    "passkey_available": {
                         "type": "boolean"
                     }
                 },
@@ -1569,6 +1857,34 @@
                 "required": [
                     "access",
                     "refresh",
+                    "requires_2fa"
+                ]
+            },
+            "StaffLoginSetupCompleteResponse": {
+                "type": "object",
+                "properties": {
+                    "access_token": {
+                        "type": "string"
+                    },
+                    "refresh_token": {
+                        "type": "string"
+                    },
+                    "requires_2fa": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "backup_codes": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "access_token",
+                    "refresh_token",
                     "requires_2fa"
                 ]
             },

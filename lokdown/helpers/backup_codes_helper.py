@@ -61,12 +61,16 @@ def _matches_backup_code(attempt: str, stored: str) -> bool:
     return secrets.compare_digest(normalized, stored.upper())
 
 
-def verify_backup_code(user: User, backup_code: str, ip_address: str = None, user_agent: str = None) -> bool:
+def verify_backup_code(
+    user: User, backup_code: str, ip_address: str | None = None, user_agent: str | None = None
+) -> bool:
     """Verify backup code and remove it if valid"""
     if not user_backup_codes_exist(user):
         return False
 
     backup_codes_obj = get_backup_codes(user)
+    if backup_codes_obj is None:
+        return False
     stored_codes = list(backup_codes_obj.codes or [])
 
     for index, stored in enumerate(stored_codes):

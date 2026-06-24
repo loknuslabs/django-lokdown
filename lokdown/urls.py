@@ -150,6 +150,18 @@ urlpatterns = [
     ),
     path("auth/login", auth_controller.login_init, name="login_init"),
     path("auth/verify", auth_controller.login_verify, name="login_verify"),
+    path("auth/login/setup/totp", auth_controller.login_setup_totp, name="login_setup_totp"),
+    path(
+        "auth/login/verify/totp",
+        auth_controller.login_verify_totp_setup,
+        name="login_verify_totp_setup",
+    ),
+    path("auth/login/setup/passkey", auth_controller.login_setup_passkey, name="login_setup_passkey"),
+    path(
+        "auth/login/verify/passkey",
+        auth_controller.login_verify_passkey_setup,
+        name="login_verify_passkey_setup",
+    ),
     path("auth/oauth/providers", socialauth_controller.oauth_providers, name="oauth_providers"),
     path(
         "auth/oauth/<str:provider>/login",

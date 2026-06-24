@@ -26,6 +26,9 @@ jobs:
         black --check lokdown example
         flake8 lokdown example
 
+    - name: Type check
+      run: mypy
+
     - name: Check deploy settings
       run: python manage.py check --deploy
 

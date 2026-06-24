@@ -2,13 +2,15 @@ from unittest.mock import MagicMock, patch
 
 import pyotp
 import pytest
-from django.utils import timezone
 from datetime import timedelta
+from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 
 from lokdown.helpers.auth_flow_helper import (
     begin_totp_setup,
     complete_login_with_tokens,
+    complete_staff_login_passkey_setup,
     complete_totp_setup,
     create_authentication_session,
     disable_user_2fa,
@@ -16,9 +18,9 @@ from lokdown.helpers.auth_flow_helper import (
     validate_session_data,
     verify_second_factor,
 )
+from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes
 from lokdown.helpers.totp_helper import get_or_create_totp, read_stored_secret
 from lokdown.models import LoginSession
-from lokdown.helpers.backup_codes_helper import get_or_create_backup_codes
 
 
 @pytest.mark.django_db
@@ -42,8 +44,43 @@ class TestInitiatePasswordLogin:
     def test_returns_pre_2fa_session_when_totp_enabled(self, user_with_totp):
         payload = initiate_password_login(user_with_totp, None)
         assert payload["requires_2fa"] is True
+        assert payload.get("requires_2fa_setup") is False
         assert payload["totp_enabled"] is True
         assert LoginSession.objects.filter(session_id=payload["session_id"]).exists()
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_without_2fa_returns_setup_session(self, staff_user):
+        payload = initiate_password_login(staff_user, None)
+        assert payload["requires_2fa"] is True
+        assert payload["requires_2fa_setup"] is True
+        assert payload["totp_available"] is True
+        assert "access_token" not in payload
+        assert LoginSession.objects.filter(session_id=payload["session_id"]).exists()
+
+    @override_settings(ADMIN_2FA_REQUIRED=False)
+    def test_staff_without_2fa_returns_tokens_when_not_required(self, staff_user):
+        payload = initiate_password_login(staff_user, None)
+        assert payload["requires_2fa"] is False
+        assert "access_token" in payload
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_cannot_complete_via_backup_code_without_primary_2fa(self, staff_user):
+        """Regression: staff must enroll TOTP/passkey; backup codes alone cannot finish login."""
+        from lokdown.helpers.backup_codes_helper import store_backup_codes
+
+        store_backup_codes(staff_user, ["BACKUP01", "BACKUP02"])
+        payload = initiate_password_login(staff_user, None)
+        assert payload["requires_2fa_setup"] is True
+        assert "access_token" not in payload
+
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "127.0.0.1", "HTTP_USER_AGENT": "pytest"}
+        result = verify_second_factor(payload["session_id"], None, None, "BACKUP01", request)
+        assert result.status_code == status.HTTP_403_FORBIDDEN
+        assert "Primary 2FA enrollment required" in result.data["error"]
+
+        session = LoginSession.objects.get(session_id=payload["session_id"])
+        assert session.is_authenticated is False
 
 
 @pytest.mark.django_db
@@ -142,6 +179,36 @@ class TestCompletePasskeyRegistration:
         assert error is None
         assert len(backup_codes) == settings.BACKUP_CODES_COUNT
         assert all(len(c) == settings.BACKUP_CODE_LENGTH for c in backup_codes)
+
+
+@pytest.mark.django_db
+class TestCompleteStaffLoginPasskeySetup:
+    @pytest.fixture
+    def staff_login_session(self, staff_user):
+        return LoginSession.objects.create(
+            user=staff_user,
+            session_id="staff-passkey-setup-session",
+            requires_2fa=True,
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+
+    @patch("lokdown.helpers.auth_flow_helper.complete_passkey_registration")
+    def test_maps_invalid_passkey_response_to_401(self, mock_complete, staff_login_session):
+        mock_complete.return_value = (False, "Invalid passkey response", [])
+        result = complete_staff_login_passkey_setup(staff_login_session, {}, None)
+        assert result.status_code == status.HTTP_401_UNAUTHORIZED
+
+    @patch("lokdown.helpers.auth_flow_helper.complete_passkey_registration")
+    def test_maps_missing_challenge_to_400(self, mock_complete, staff_login_session):
+        mock_complete.return_value = (False, "No valid session challenge found", [])
+        result = complete_staff_login_passkey_setup(staff_login_session, {}, None)
+        assert result.status_code == status.HTTP_400_BAD_REQUEST
+
+    @patch("lokdown.helpers.auth_flow_helper.complete_passkey_registration")
+    def test_maps_save_failure_to_500(self, mock_complete, staff_login_session):
+        mock_complete.return_value = (False, "Failed to save passkey credential", [])
+        result = complete_staff_login_passkey_setup(staff_login_session, {}, None)
+        assert result.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
 @pytest.mark.django_db
