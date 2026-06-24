@@ -242,7 +242,7 @@ def complete_staff_login_passkey_setup(
         request=request,
     )
     if not ok:
-        code = status.HTTP_401_UNAUTHORIZED if error == "Invalid passkey response" else status.HTTP_400_BAD_REQUEST
+        code: int = status.HTTP_401_UNAUTHORIZED if error == "Invalid passkey response" else status.HTTP_400_BAD_REQUEST
         if error == "Failed to save passkey credential":
             code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return Response({"error": error}, status=code)
