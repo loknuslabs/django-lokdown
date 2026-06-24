@@ -315,6 +315,11 @@ def verify_second_factor(
         return Response({"error": "Invalid passkey response"}, status=status.HTTP_401_UNAUTHORIZED)
 
     if backup_code:
+        if not is_2fa_enabled(session.user):
+            return Response(
+                {"error": "Primary 2FA enrollment required before using backup codes"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         rate_limit_response = check_backup_rate_limit(request)
         if rate_limit_response:
             return rate_limit_response
@@ -527,6 +532,8 @@ def verify_admin_second_factor(
         return False, "Invalid passkey response"
 
     if backup_code:
+        if not is_2fa_enabled(session.user):
+            return False, "Primary 2FA enrollment required before using backup codes"
         rate_limit_response = check_backup_rate_limit(request)
         if rate_limit_response:
             return False, "Too many backup code attempts"

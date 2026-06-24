@@ -92,6 +92,20 @@ class TestVerifySecondFactor:
         result = verify_second_factor(login_session.session_id, None, None, "BACKUP01", request)
         assert isinstance(result, LoginSession)
 
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_backup_code_rejected_without_primary_2fa(self, staff_user):
+        from lokdown.helpers.backup_codes_helper import store_backup_codes
+
+        store_backup_codes(staff_user, ["BACKUP01", "BACKUP02"])
+        payload = initiate_password_login(staff_user, None)
+        assert payload["requires_2fa_setup"] is True
+
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "127.0.0.1", "HTTP_USER_AGENT": "pytest"}
+        result = verify_second_factor(payload["session_id"], None, None, "BACKUP01", request)
+        assert result.status_code == status.HTTP_403_FORBIDDEN
+        assert "Primary 2FA enrollment required" in result.data["error"]
+
     def test_expired_session_returns_400(self, user_with_totp):
         session = LoginSession.objects.create(
             user=user_with_totp,

@@ -101,6 +101,26 @@ class TestAuthController:
         assert LoginSession.objects.get(session_id=init.data["session_id"]).is_authenticated is True
 
     @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_login_verify_rejects_backup_code_without_primary_2fa(self, api_client, staff_user):
+        from lokdown.helpers.backup_codes_helper import store_backup_codes
+
+        store_backup_codes(staff_user, ["BACKUP01", "BACKUP02"])
+        init = api_client.post(
+            reverse("lokdown:login_init"),
+            {"username": "staffuser", "password": "staffpass123"},
+            format="json",
+        )
+        assert init.data["requires_2fa_setup"] is True
+
+        verify = api_client.post(
+            reverse("lokdown:login_verify"),
+            {"session_id": init.data["session_id"], "backup_code": "BACKUP01"},
+            format="json",
+        )
+        assert verify.status_code == status.HTTP_403_FORBIDDEN
+        assert "Primary 2FA enrollment required" in verify.data["error"]
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
     @patch("lokdown.helpers.auth_flow_helper.save_passkey_to_database", return_value=True)
     @patch("lokdown.helpers.auth_flow_helper.verify_passkey_registration")
     def test_staff_first_login_passkey_setup_flow(self, mock_verify, _mock_save, api_client, staff_user):

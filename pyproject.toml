@@ -76,7 +76,7 @@ target-version = ['py313']
 python_version = "3.13"
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 files = ["lokdown"]
-exclude = ["lokdown/migrations/", "lokdown/tests/"]
+exclude = "^(lokdown/(migrations|tests)/)"
 warn_unused_ignores = true
 show_error_codes = true
 
