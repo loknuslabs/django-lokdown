@@ -3,6 +3,7 @@ import pytest
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
+from unittest.mock import patch
 
 from lokdown.models import LoginSession
 
@@ -98,3 +99,41 @@ class TestAuthController:
         assert "access_token" in verify.data
         assert verify.data["backup_codes"]
         assert LoginSession.objects.get(session_id=init.data["session_id"]).is_authenticated is True
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    @patch("lokdown.helpers.auth_flow_helper.save_passkey_to_database", return_value=True)
+    @patch("lokdown.helpers.auth_flow_helper.verify_passkey_registration")
+    def test_staff_first_login_passkey_setup_flow(self, mock_verify, _mock_save, api_client, staff_user):
+        mock_verify.return_value = object()
+
+        init = api_client.post(
+            reverse("lokdown:login_init"),
+            {"username": "staffuser", "password": "staffpass123"},
+            format="json",
+        )
+        setup = api_client.post(
+            reverse("lokdown:login_setup_passkey"),
+            {"session_id": init.data["session_id"]},
+            format="json",
+        )
+        assert setup.status_code == status.HTTP_200_OK
+        assert "options" in setup.data
+        passkey_session_id = setup.data["session_id"]
+
+        verify = api_client.post(
+            reverse("lokdown:login_verify_passkey_setup"),
+            {
+                "session_id": passkey_session_id,
+                "passkey_response": {
+                    "id": "cred",
+                    "rawId": "cred",
+                    "type": "public-key",
+                    "response": {},
+                },
+            },
+            format="json",
+        )
+        assert verify.status_code == status.HTTP_200_OK
+        assert "access_token" in verify.data
+        assert verify.data["backup_codes"]
+        assert LoginSession.objects.get(session_id=passkey_session_id).is_authenticated is True

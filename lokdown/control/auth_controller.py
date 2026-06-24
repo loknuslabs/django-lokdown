@@ -114,7 +114,7 @@ def login_verify(request):
     request=LoginSessionRequestSerializer,
     responses={
         200: TOTPSetupResponseSerializer,
-        400: OpenApiResponse(description="Invalid session"),
+        400: OpenApiResponse(description="Invalid session or setup state"),
         403: OpenApiResponse(description="Not authorized"),
     },
 )
@@ -149,8 +149,9 @@ def login_setup_totp(request):
     responses={
         200: StaffLoginSetupCompleteResponseSerializer,
         401: OpenApiResponse(description="Invalid TOTP token"),
-        400: OpenApiResponse(description="Invalid session"),
+        400: OpenApiResponse(description="Invalid session or setup state"),
         403: OpenApiResponse(description="Not authorized"),
+        500: OpenApiResponse(description="Failed to complete TOTP setup"),
     },
 )
 @api_view(["POST"])
@@ -181,8 +182,9 @@ def login_verify_totp_setup(request):
     request=LoginSessionRequestSerializer,
     responses={
         200: PasskeySetupResponseSerializer,
-        400: OpenApiResponse(description="Invalid session"),
+        400: OpenApiResponse(description="Invalid session or setup state"),
         403: OpenApiResponse(description="Not authorized"),
+        500: OpenApiResponse(description="Failed to generate passkey options or session"),
     },
 )
 @api_view(["POST"])
@@ -215,8 +217,9 @@ def login_setup_passkey(request):
     responses={
         200: StaffLoginSetupCompleteResponseSerializer,
         401: OpenApiResponse(description="Invalid passkey response"),
-        400: OpenApiResponse(description="Invalid session"),
+        400: OpenApiResponse(description="Invalid session or setup state"),
         403: OpenApiResponse(description="Not authorized"),
+        500: OpenApiResponse(description="Failed to save passkey credential"),
     },
 )
 @api_view(["POST"])
