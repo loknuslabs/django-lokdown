@@ -156,13 +156,13 @@ class TestCompleteLoginWithTokens:
 class TestCompletePasskeyRegistration:
     @patch("lokdown.helpers.auth_flow_helper.save_passkey_to_database", return_value=True)
     @patch("lokdown.helpers.auth_flow_helper.verify_passkey_registration")
-    def test_returns_backup_codes_on_success(self, mock_verify, _mock_save, user):
-        from django.conf import settings
+    def test_does_not_generate_backup_codes_on_success(self, mock_verify, _mock_save, user):
         from lokdown.helpers.auth_flow_helper import (
             complete_passkey_registration,
             create_login_session_for_passkey,
             generate_passkey_options,
         )
+        from lokdown.helpers.backup_codes_helper import user_backup_codes_exist
 
         mock_verify.return_value = object()
         options = generate_passkey_options(user)
@@ -170,15 +170,14 @@ class TestCompletePasskeyRegistration:
         session_id = create_login_session_for_passkey(user, options.challenge)
         assert session_id is not None
 
-        ok, error, backup_codes = complete_passkey_registration(
+        ok, error = complete_passkey_registration(
             user,
             session_id,
             {"id": "cred", "rawId": "cred", "type": "public-key", "response": {}},
         )
         assert ok is True
         assert error is None
-        assert len(backup_codes) == settings.BACKUP_CODES_COUNT
-        assert all(len(c) == settings.BACKUP_CODE_LENGTH for c in backup_codes)
+        assert user_backup_codes_exist(user) is False
 
 
 @pytest.mark.django_db
@@ -194,19 +193,19 @@ class TestCompleteStaffLoginPasskeySetup:
 
     @patch("lokdown.helpers.auth_flow_helper.complete_passkey_registration")
     def test_maps_invalid_passkey_response_to_401(self, mock_complete, staff_login_session):
-        mock_complete.return_value = (False, "Invalid passkey response", [])
+        mock_complete.return_value = (False, "Invalid passkey response")
         result = complete_staff_login_passkey_setup(staff_login_session, {}, None)
         assert result.status_code == status.HTTP_401_UNAUTHORIZED
 
     @patch("lokdown.helpers.auth_flow_helper.complete_passkey_registration")
     def test_maps_missing_challenge_to_400(self, mock_complete, staff_login_session):
-        mock_complete.return_value = (False, "No valid session challenge found", [])
+        mock_complete.return_value = (False, "No valid session challenge found")
         result = complete_staff_login_passkey_setup(staff_login_session, {}, None)
         assert result.status_code == status.HTTP_400_BAD_REQUEST
 
     @patch("lokdown.helpers.auth_flow_helper.complete_passkey_registration")
     def test_maps_save_failure_to_500(self, mock_complete, staff_login_session):
-        mock_complete.return_value = (False, "Failed to save passkey credential", [])
+        mock_complete.return_value = (False, "Failed to save passkey credential")
         result = complete_staff_login_passkey_setup(staff_login_session, {}, None)
         assert result.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 

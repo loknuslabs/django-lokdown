@@ -15,7 +15,7 @@ A user has 2FA enabled when **either** TOTP or at least one passkey is configure
 - TOTP: `UserTimeBasedOneTimePasswords.totp_secret` is set
 - Passkey: one or more `PasskeyCredential` rows exist
 
-Backup codes alone do **not** enable 2FA. They are a recovery factor used only after a primary method exists.
+Backup codes alone do **not** enable 2FA. They are a recovery factor used only after a primary method exists. Backup codes are generated **only when TOTP is set up**, not when enrolling a passkey.
 
 ### Admin 2FA required (`ADMIN_2FA_REQUIRED`)
 
@@ -96,8 +96,8 @@ Optional capabilities are **disabled by default**. Set the flags you need in `se
 
 | Setting | Default | Effect when `True` |
 |---------|---------|-------------------|
-| `LOKDOWN_TOTP_ENABLED` | `False` | TOTP setup/login APIs and admin enrollment; backup codes generated on setup |
-| `LOKDOWN_PASSKEY_ENABLED` | `False` | Passkey setup/login APIs and admin enrollment; backup codes generated on setup |
+| `LOKDOWN_TOTP_ENABLED` | `False` | TOTP setup/login APIs and admin enrollment; backup codes generated on TOTP setup |
+| `LOKDOWN_PASSKEY_ENABLED` | `False` | Passkey setup/login APIs and admin enrollment (no backup codes on passkey setup) |
 | `LOKDOWN_API_KEYS_ENABLED` | `False` | API key CRUD and `LokdownApiKeyAuthentication` |
 | `LOKDOWN_SOCIALAUTH_ENABLED` | `False` | OAuth provider helpers and session bridge (`/api/auth/oauth/*`) |
 | `LOKDOWN_ALLOW_PUBLIC_REGISTRATION` | `False` | allauth email/password and OAuth signup (invite-only when `False`) |
@@ -133,8 +133,8 @@ WEBAUTHN_ORIGINS = [
 WEBAUTHN_ORIGIN = "http://localhost:8000"  # optional; first origin if ORIGINS unset
 
 # Feature flags (disabled by default — enable what you need)
-LOKDOWN_TOTP_ENABLED = False          # TOTP enrollment/login; backup codes on setup
-LOKDOWN_PASSKEY_ENABLED = False       # passkey enrollment/login; backup codes on setup
+LOKDOWN_TOTP_ENABLED = False          # TOTP enrollment/login; backup codes on TOTP setup
+LOKDOWN_PASSKEY_ENABLED = False       # passkey enrollment/login (no backup codes on passkey setup)
 LOKDOWN_SOCIALAUTH_ENABLED = False    # OAuth / social login (requires django-allauth)
 LOKDOWN_ALLOW_PUBLIC_REGISTRATION = False  # allauth signup; staff create users when False
 LOKDOWN_API_KEYS_ENABLED = False      # user API keys
@@ -445,7 +445,7 @@ sequenceDiagram
         CB-->>SPA: session_id + requires_2fa_setup
         SPA->>API: POST /api/auth/login/setup/totp (or passkey)
         SPA->>API: POST /api/auth/login/verify/totp (or passkey)
-        API-->>SPA: JWT access + refresh + backup_codes
+        API-->>SPA: JWT access + refresh (backup_codes only for TOTP)
     end
 ```
 
@@ -844,7 +844,7 @@ sequenceDiagram
         API-->>SPA: session_id, options
         SPA->>SPA: navigator.credentials.create()
         SPA->>API: POST /api/auth/login/verify/passkey { session_id, passkey_response }
-        API-->>SPA: access_token, refresh_token, backup_codes
+        API-->>SPA: access_token, refresh_token
     end
 ```
 
@@ -954,10 +954,11 @@ Content-Type: application/json
   "access_token": "<jwt>",
   "refresh_token": "<jwt>",
   "requires_2fa": false,
-  "message": "Passkey setup verified successfully",
-  "backup_codes": ["ABCD1234EF", "GHI5678JKL0"]
+  "message": "Passkey setup verified successfully"
 }
 ```
+
+Passkey enrollment does **not** generate or return backup codes. Backup codes are created only when TOTP is set up.
 
 ### Notes
 
@@ -1176,12 +1177,11 @@ Content-Type: application/json
 
 ```json
 {
-  "message": "Passkey setup verified successfully",
-  "backup_codes": ["ABCD1234EF", "GHI5678JKL0"]
+  "message": "Passkey setup verified successfully"
 }
 ```
 
-The credential is saved after verification. A fresh set of backup codes is generated and returned in the response (same as TOTP setup). Store them immediately; they are not returned again via the API.
+The credential is saved after verification. Backup codes are **not** generated for passkey enrollment — they are created only during TOTP setup.
 
 ### Manage passkeys
 
@@ -1363,12 +1363,13 @@ sequenceDiagram
     alt TOTP
         S->>S: QR + pending_totp_secret
         U->>S: Verify code
+        S->>B: Show backup codes
+        U->>B: Acknowledge
+        B->>U: Redirect to admin index
     else Passkey
         S->>S: WebAuthn register
+        S->>U: Login + redirect to admin index
     end
-    S->>B: Show backup codes
-    U->>B: Acknowledge
-    B->>U: Redirect to admin index
 ```
 
 | Step | URL | Notes |
@@ -1376,8 +1377,8 @@ sequenceDiagram
 | Login | `/admin/login/` | Password only; creates `LoginSession`, stores `admin_2fa_session_id` in Django session |
 | Setup hub | `/admin/2fa/setup/` | Choose TOTP or passkey |
 | TOTP setup | `/admin/2fa/verify/totp/` | Secret in session until verified |
-| Passkey setup | `/admin/2fa/setup/passkey/` | Uses same helpers as API |
-| Backup codes | `/admin/2fa/backup-codes/` | Shown after first enrollment |
+| Passkey setup | `/admin/2fa/setup/passkey/` | Uses same helpers as API; no backup codes |
+| Backup codes | `/admin/2fa/backup-codes/` | Shown after TOTP enrollment only |
 
 ### Subsequent logins (2FA already enabled)
 
@@ -1397,7 +1398,7 @@ Available even when `ADMIN_2FA_REQUIRED` is false:
 |-----|---------|
 | `/admin/current-user/totp-setup/` | Add/replace TOTP |
 | `/admin/current-user/passkey-setup/` | Add passkey |
-| `/admin/current-user/backup-codes/` | View codes after setup |
+| `/admin/current-user/backup-codes/` | View codes after TOTP setup |
 
 ---
 
@@ -1414,7 +1415,7 @@ Base path assumes `path("api/", include("lokdown.urls"))`.
 | POST | `auth/login/setup/totp` | No | Start TOTP setup during staff first login (`session_id`) |
 | POST | `auth/login/verify/totp` | No | Complete TOTP setup during staff first login → JWTs + backup codes |
 | POST | `auth/login/setup/passkey` | No | Start passkey setup during staff first login (`session_id`) |
-| POST | `auth/login/verify/passkey` | No | Complete passkey setup during staff first login → JWTs + backup codes |
+| POST | `auth/login/verify/passkey` | No | Complete passkey setup during staff first login → JWTs (no backup codes) |
 | POST | `auth/token` | No | SimpleJWT obtain (same semantics as login) |
 | POST | `auth/token/refresh` | No | Refresh JWT |
 | POST | `auth/token/verify` | No | Complete 2FA verify → `access` / `refresh` |
@@ -1597,7 +1598,7 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 
 1. **HTTPS in production** — WebAuthn requires a trustworthy origin (`WEBAUTHN_ORIGIN` must match the browser URL).
 2. **TOTP secrets at rest** — Encrypted with Fernet. Set `LOKDOWN_FERNET_KEY` (url-safe base64, 32 bytes) in production; otherwise derived from `SECRET_KEY`.
-3. **Backup codes at rest** — Stored as salted hashes (Django password hasher). Plaintext codes are returned only once at generation via API/admin session flow.
+3. **Backup codes at rest** — Stored as salted hashes (Django password hasher). Plaintext codes are returned only once at TOTP setup via API/admin session flow. Passkey enrollment does not generate backup codes.
 4. **API keys at rest** — Stored as salted hashes (Django password hasher). Plaintext keys are returned only once at creation. Revocation sets `revoked_at`; expired keys are rejected at authentication time.
 5. **Session fixation** — `LoginSession` IDs are UUIDs, expire quickly, and cannot be reused after `is_authenticated=True`.
 6. **Rate limiting** — Backup verification only (per IP); TOTP/passkey are not rate-limited on `auth/verify` beyond Django/infra limits.
@@ -1618,8 +1619,8 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 - [ ] If `requires_2fa_setup: true`, run staff login setup (`auth/login/setup/*` → `auth/login/verify/*`); do not call `auth/verify` until 2FA is enrolled.
 - [ ] For passkey login (verify flow): call `passkey/options` before `verify`.
 - [ ] Store JWT; refresh via `auth/token/refresh`.
-- [ ] On 2FA setup: call `setup/totp` then `verify/totp` with only `totp_token` (pending secret is stored server-side).
-- [ ] On passkey setup: pass `session_id` from setup into verify.
+- [ ] On 2FA setup: call `setup/totp` then `verify/totp` with only `totp_token` (pending secret is stored server-side); store returned `backup_codes` immediately.
+- [ ] On passkey setup: pass `session_id` from setup into verify (no backup codes are returned).
 - [ ] Treat backup codes as single-use; handle 429 on backup attempts.
 - [ ] Enable feature flags you need: `LOKDOWN_TOTP_ENABLED`, `LOKDOWN_PASSKEY_ENABLED`, `LOKDOWN_API_KEYS_ENABLED`, `LOKDOWN_SOCIALAUTH_ENABLED`.
 - [ ] (Optional) Enable API keys: `LOKDOWN_API_KEYS_ENABLED = True`, add `LokdownApiKeyAuthentication`, set lifespan settings; store keys securely after create (see [API keys](#api-workflow-user-api-keys)).

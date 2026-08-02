@@ -24,7 +24,6 @@ from lokdown.serializers import (
     PasskeySetupRequestSerializer,
     PasskeySetupResponseSerializer,
     PasskeyVerifySetupRequestSerializer,
-    TwoFactorSetupCompleteResponseSerializer,
 )
 
 
@@ -60,7 +59,7 @@ def setup_passkey(request):
     tags=["2FA Passkey"],
     request=PasskeyVerifySetupRequestSerializer,
     responses={
-        200: TwoFactorSetupCompleteResponseSerializer,
+        200: MessageResponseSerializer,
         401: ErrorResponseSerializer,
         403: ErrorResponseSerializer,
     },
@@ -76,7 +75,7 @@ def verify_passkey_setup(request):
 
     data = serializer.validated_data
     try:
-        ok, error, backup_codes = complete_passkey_registration(
+        ok, error = complete_passkey_registration(
             request.user,
             data["session_id"],
             data["passkey_response"],
@@ -85,10 +84,9 @@ def verify_passkey_setup(request):
         if not ok:
             return Response(ErrorResponseSerializer({"error": error}).data, status=status.HTTP_401_UNAUTHORIZED)
         return Response(
-            TwoFactorSetupCompleteResponseSerializer(
+            MessageResponseSerializer(
                 {
                     "message": "Passkey setup verified successfully",
-                    "backup_codes": backup_codes,
                 }
             ).data
         )

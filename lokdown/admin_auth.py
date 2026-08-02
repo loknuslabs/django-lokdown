@@ -191,17 +191,17 @@ def admin_2fa_setup_passkey_view(request):
     if request.method == "POST":
         passkey_response = request.POST.get("passkey_response")
         if passkey_response:
-            ok, error, backup_codes = complete_passkey_registration(
+            ok, error = complete_passkey_registration(
                 user,
                 session.session_id,
                 passkey_response,
-                create_backup_codes_if_missing=True,
                 request=request,
             )
             if ok:
-                request.session["admin_pending_backup_codes"] = backup_codes
+                clear_admin_pending_session_id(request)
+                _login_staff_user(request, user)
                 messages.success(request, "Passkey setup completed successfully!")
-                return redirect("admin_2fa_backup_codes")
+                return redirect("admin:index")
             messages.error(request, error or "Passkey setup failed.")
 
     result = begin_passkey_registration(user, request)
@@ -277,18 +277,16 @@ def admin_current_user_passkey_setup(request):
             messages.error(request, "Session expired. Please try again.")
             return redirect("admin_current_user_passkey_setup")
 
-        ok, error, backup_codes = complete_passkey_registration(
+        ok, error = complete_passkey_registration(
             user,
             session_id,
             passkey_response,
-            create_backup_codes_if_missing=True,
             request=request,
         )
         if ok:
             del request.session["current_user_passkey_session_id"]
-            request.session["admin_current_user_pending_backup_codes"] = backup_codes
             messages.success(request, "Passkey setup completed successfully!")
-            return redirect("admin_current_user_backup_codes")
+            return redirect("admin:lokdown_passkeycredential_changelist")
         messages.error(request, error or "Passkey setup failed.")
 
     result = begin_passkey_registration(user, request)
