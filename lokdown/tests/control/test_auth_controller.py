@@ -159,5 +159,5 @@ class TestAuthController:
         )
         assert verify.status_code == status.HTTP_200_OK
         assert "access_token" in verify.data
-        assert verify.data["backup_codes"]
+        assert "backup_codes" not in verify.data
         assert LoginSession.objects.get(session_id=passkey_session_id).is_authenticated is True

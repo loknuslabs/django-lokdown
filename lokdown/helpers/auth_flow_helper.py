@@ -20,9 +20,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from lokdown.helpers.backup_codes_helper import (
-    generate_backup_codes,
     get_or_create_backup_codes,
-    store_backup_codes,
     user_backup_codes_exist,
     verify_backup_code,
 )
@@ -234,11 +232,10 @@ def complete_staff_login_passkey_setup(
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    ok, error, backup_codes = complete_passkey_registration(
+    ok, error = complete_passkey_registration(
         session.user,
         session.session_id,
         passkey_response,
-        create_backup_codes_if_missing=True,
         request=request,
     )
     if not ok:
@@ -247,14 +244,12 @@ def complete_staff_login_passkey_setup(
             code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return Response({"error": error}, status=code)
 
-    payload = complete_login_with_tokens(
+    return complete_login_with_tokens(
         session,
         request,
         key_style=key_style,
         message="Passkey setup verified successfully",
     )
-    payload["backup_codes"] = backup_codes
-    return payload
 
 
 def _mark_session_verified(session: LoginSession, method: str) -> None:
@@ -418,11 +413,15 @@ def complete_passkey_registration(
     session_id: str,
     passkey_response: dict | str,
     *,
-    create_backup_codes_if_missing: bool = True,
     request=None,
-) -> tuple[bool, str | None, list[str]]:
+) -> tuple[bool, str | None]:
+    """
+    Complete passkey enrollment.
+
+    Backup codes are not generated here — they are created only during TOTP setup.
+    """
     if not passkey_enabled():
-        return False, "Passkey support is disabled", []
+        return False, "Passkey support is disabled"
     try:
         session = LoginSession.objects.get(
             session_id=session_id,
@@ -430,23 +429,19 @@ def complete_passkey_registration(
             expires_at__gt=timezone.now(),
         )
     except LoginSession.DoesNotExist:
-        return False, "Invalid or expired session", []
+        return False, "Invalid or expired session"
 
     if not session.challenge:
-        return False, "No valid session challenge found", []
+        return False, "No valid session challenge found"
 
     verification = verify_passkey_registration(passkey_response, session.challenge, request)
     if not verification:
-        return False, "Invalid passkey response", []
+        return False, "Invalid passkey response"
 
     if not save_passkey_to_database(user, verification, request):
-        return False, "Failed to save passkey credential", []
+        return False, "Failed to save passkey credential"
 
-    backup_codes: list[str] = []
-    if create_backup_codes_if_missing:
-        backup_codes = store_backup_codes(user, generate_backup_codes())
-
-    return True, None, backup_codes
+    return True, None
 
 
 def validate_login_session(session_id: str | None) -> LoginSession | Response:

@@ -41,7 +41,11 @@ class TokenPairResponseSerializer(serializers.Serializer):
 
 class StaffLoginSetupCompleteResponseSerializer(TokenPairResponseSerializer):
     message = serializers.CharField(required=False)
-    backup_codes = serializers.ListField(child=serializers.CharField(), required=False)
+    backup_codes = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="Present only after TOTP setup. Passkey enrollment does not generate backup codes.",
+    )
 
 
 class SimpleJwtTokenPairResponseSerializer(serializers.Serializer):

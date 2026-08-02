@@ -182,8 +182,8 @@ SESSION_COOKIE_SECURE = not DEBUG
 Lokdown ships with optional capabilities turned off. Enable only what your project needs:
 
 ```python
-LOKDOWN_TOTP_ENABLED = True        # TOTP enrollment and login (backup codes on setup)
-LOKDOWN_PASSKEY_ENABLED = True     # WebAuthn passkey enrollment and login (backup codes on setup)
+LOKDOWN_TOTP_ENABLED = True        # TOTP enrollment and login (backup codes on TOTP setup)
+LOKDOWN_PASSKEY_ENABLED = True     # WebAuthn passkey enrollment and login (no backup codes on passkey setup)
 LOKDOWN_API_KEYS_ENABLED = True    # User API key management and DRF authentication
 LOKDOWN_SOCIALAUTH_ENABLED = True  # OAuth / social account login (requires django-allauth)
 LOKDOWN_ALLOW_PUBLIC_REGISTRATION = True  # allow allauth email/OAuth signup (default False)
@@ -682,7 +682,7 @@ urlpatterns = [
 urlpatterns = override_admin_urls(urlpatterns)
 ```
 
-**First-time setup:** login → choose TOTP or Passkey → verify → backup codes → admin dashboard
+**First-time setup:** login → choose TOTP (→ backup codes) or Passkey → admin dashboard
 
 **Subsequent login:** login → TOTP / passkey / backup code → admin dashboard
 
@@ -691,7 +691,7 @@ urlpatterns = override_admin_urls(urlpatterns)
 - One-click 2FA method selection (no confirmation buttons)
 - Verification-before-save for TOTP
 - Automatic passkey prompts
-- Backup code display and download (TXT/CSV)
+- Backup code display and download after TOTP setup (TXT/CSV)
 - Dark mode support
 - Security dashboard with adoption statistics
 
@@ -772,7 +772,7 @@ Override in your project `templates/`:
 ### Session and backup code behavior
 
 - Login sessions tied to IP and user agent
-- 8 backup codes generated on TOTP/passkey setup (configurable)
+- 8 backup codes generated on TOTP setup (configurable)
 - Passkey sign count prevents replay attacks
 
 ---
