@@ -10,7 +10,7 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from lokdown.helpers.auth_flow_helper import initiate_password_login
+from lokdown.helpers.auth_flow_helper import initiate_social_login
 from lokdown.helpers.feature_settings_helper import feature_disabled_message, socialauth_enabled
 from lokdown.serializers.socialauth import (
     OAuthProviderRedirectSerializer,
@@ -48,8 +48,8 @@ def _invalid_callback_url_response() -> Response:
 
 
 def bridge_oauth_session_to_lokdown(user, request) -> dict:
-    """After OAuth Django session exists, return lokdown JWT or pre-2FA payload."""
-    return initiate_password_login(user, request)
+    """After OAuth Django session exists, return lokdown JWTs (no 2FA step)."""
+    return initiate_social_login(user)
 
 
 @extend_schema(
@@ -120,7 +120,8 @@ def oauth_providers(request):
         "`callback_url` must pass allauth `is_safe_url` and, when set, "
         "`LOKDOWN_SOCIALAUTH_ALLOWED_CALLBACK_ORIGINS`. "
         "After OAuth completes, call `POST /api/auth/oauth/callback` from your SPA with "
-        "session cookie and `X-CSRFToken` to receive JWTs or a pre-2FA `session_id`."
+        "session cookie and `X-CSRFToken` to receive JWTs. Social login does not require "
+        "TOTP, backup codes, or passkey (including for staff)."
     ),
     tags=["OAuth"],
     parameters=[
@@ -180,9 +181,9 @@ def oauth_provider_login(request, provider: str):
     summary="Complete OAuth login (session to JWT)",
     description=(
         "Primary SPA callback endpoint. Call after OAuth when the browser has a Django "
-        "session cookie (`sessionid` on the API origin). Returns JSON only — same shape as "
-        "`POST /api/auth/login` when 2FA is off, or `session_id` + flags for "
-        "`POST /api/auth/verify` when 2FA is enabled. "
+        "session cookie (`sessionid` on the API origin). Returns JSON only — JWT pair with "
+        "`requires_2fa: false`. Social login does **not** require TOTP, backup codes, "
+        "or passkey, including for staff when `ADMIN_2FA_REQUIRED` is True. "
         "Authenticates via Django **session cookie** (`sessionid`), not Bearer JWT. "
         "Requires **POST** with CSRF protection (`X-CSRFToken` header or "
         "`csrfmiddlewaretoken` body field). Same-origin SPAs can proxy `/accounts/*` and "
@@ -197,7 +198,7 @@ def oauth_provider_login(request, provider: str):
         401: OpenApiResponse(description="Not authenticated (no OAuth session cookie)"),
         403: OpenApiResponse(description="CSRF verification failed"),
         503: OpenApiResponse(description="allauth not installed"),
-        500: OpenApiResponse(description="Failed to create lokdown login session"),
+        500: OpenApiResponse(description="Failed to issue lokdown tokens"),
     },
 )
 @api_view(["POST"])
@@ -213,7 +214,7 @@ def oauth_callback_bridge(request):
         payload = bridge_oauth_session_to_lokdown(request.user, request)
     except RuntimeError:
         return Response(
-            {"error": "Failed to create authentication session"},
+            {"error": "Failed to issue authentication tokens"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 

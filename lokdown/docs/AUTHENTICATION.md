@@ -19,10 +19,10 @@ Backup codes alone do **not** enable 2FA. They are a recovery factor used only a
 
 ### Admin 2FA required (`ADMIN_2FA_REQUIRED`)
 
-When `ADMIN_2FA_REQUIRED = True`, **staff users** (`is_staff=True`) must have a primary 2FA method (TOTP or passkey) before lokdown issues JWTs — on both the Django admin portal **and** the API login paths (`POST /api/auth/login`, `POST /api/auth/token`, and the OAuth session bridge).
+When `ADMIN_2FA_REQUIRED = True`, **staff users** (`is_staff=True`) must have a primary 2FA method (TOTP or passkey) before lokdown issues JWTs — on the Django admin portal **and** the **password** API login paths (`POST /api/auth/login`, `POST /api/auth/token`). Social/OAuth login does **not** use this rule (see [Social login skips lokdown 2FA](#social-login-skips-lokdown-2fa)).
 
-| User | 2FA enrolled? | API password/OAuth login result |
-|------|---------------|----------------------------------|
+| User | 2FA enrolled? | API password login result |
+|------|---------------|---------------------------|
 | Non-staff | No | JWTs immediately (`requires_2fa: false`) |
 | Non-staff | Yes | Pre-2FA session → verify flow |
 | Staff | No | Pre-2FA session with **`requires_2fa_setup: true`** → enroll during login (no JWTs until setup completes) |
@@ -32,7 +32,11 @@ Staff first login uses the same `LoginSession` model as normal 2FA verify, but t
 
 Non-staff users are unaffected. When `ADMIN_2FA_REQUIRED = False`, staff without 2FA receive JWTs immediately (same as before).
 
-OAuth staff users follow the same rules: after `POST /api/auth/oauth/callback`, check `requires_2fa_setup` in addition to `requires_2fa`.
+### Social login skips lokdown 2FA
+
+After a successful social/OAuth login, `POST /api/auth/oauth/callback` always issues JWTs (`requires_2fa: false`). The user does **not** submit TOTP, backup codes, or a passkey. This is true for **staff and non-staff**, including when `ADMIN_2FA_REQUIRED = True` and when the user already has TOTP or passkeys enrolled.
+
+Password login is unchanged. Django admin HTML login (username/password) still requires 2FA for staff when `ADMIN_2FA_REQUIRED`.
 
 ### LoginSession
 
@@ -62,14 +66,14 @@ Both stacks call `initiate_password_login()` in `auth_flow_helper.py`. Verify fl
 
 ### External provider login (OAuth)
 
-| Stack | Step 1 | Step 2 | Step 3 | Step 4 (if 2FA) | Token JSON keys |
-|--------|--------|--------|--------|-----------------|-----------------|
-| **OAuth + REST** | `GET /_allauth/browser/v1/config` or lokdown metadata → POST headless redirect | Browser OAuth (provider callbacks on `/accounts/…`) | `POST /api/auth/oauth/callback` (session + CSRF) | `POST /api/auth/verify` | `access_token`, `refresh_token` |
-| **OAuth + SimpleJWT** | Same | Same | Same | `POST /api/auth/token/verify` | `access`, `refresh` |
+| Stack | Step 1 | Step 2 | Step 3 | Token JSON keys |
+|--------|--------|--------|--------|-----------------|
+| **OAuth + REST** | `GET /_allauth/browser/v1/config` or lokdown metadata → POST headless redirect | Browser OAuth (provider callbacks on `/accounts/…`) | `POST /api/auth/oauth/callback` (session + CSRF) | `access_token`, `refresh_token` |
+| **OAuth + SimpleJWT** | Same | Same | Same | `access_token`, `refresh_token` |
 
 Step 1–3 are documented in OpenAPI under the **OAuth** tag (`example/api_schema.json`). Allauth headless routes (`/_allauth/browser/v1/*`) and provider callbacks (`/accounts/<provider>/login/callback/`) are browser-only and do not appear in the lokdown schema.
 
-OAuth completes with a **Django session** (`request.user`). Lokdown JWTs are issued at step 3 via `bridge_oauth_session_to_lokdown` / `initiate_password_login`. See [Login with external provider](#api-workflow-login-with-external-provider-oauth).
+OAuth completes with a **Django session** (`request.user`). Lokdown JWTs are issued at step 3 via `bridge_oauth_session_to_lokdown` / `initiate_social_login`. Social login never requires TOTP, backup codes, or passkey. See [Login with external provider](#api-workflow-login-with-external-provider-oauth).
 
 ### Passkey login requires a challenge step
 
@@ -408,16 +412,16 @@ Implementation: `lokdown/control/socialauth_controller.py`, serializers in `lokd
 
 ## API workflow: login with external provider (OAuth)
 
-This section describes the **end-to-end path** from Google/GitHub/etc. to lokdown JWTs, including 2FA.
+This section describes the **end-to-end path** from Google/GitHub/etc. to lokdown JWTs. Social login does **not** require TOTP, backup codes, or passkey.
 
 ### Two layers of authentication
 
 | Layer | Established by | Used for |
 |-------|----------------|----------|
 | **Django session** | django-allauth after OAuth | Browser cookie; `request.user` in views |
-| **Lokdown JWT** | `initiate_password_login` + optional `verify_second_factor` | `Authorization: Bearer` on `/api/*` |
+| **Lokdown JWT** | `initiate_social_login` | `Authorization: Bearer` on `/api/*` |
 
-Lokdown does not expose a dedicated “OAuth token” endpoint. After OAuth, your **`auth_callback`** view (or an API called with session cookies) must call the same helpers as password login.
+Lokdown does not expose a dedicated “OAuth token” endpoint. After OAuth, your **`auth_callback`** view (or `POST /api/auth/oauth/callback` with session cookies) calls `initiate_social_login`, which always issues JWTs.
 
 ### Overview
 
@@ -427,26 +431,14 @@ sequenceDiagram
     participant OAuth as Provider (Google, etc.)
     participant Allauth as Django + allauth
     participant CB as auth_callback (your view)
-    participant API as lokdown /api/auth/*
 
     SPA->>Allauth: POST /_allauth/browser/v1/auth/provider/redirect
     Allauth->>OAuth: Authorize
     OAuth-->>Allauth: Callback + code
     Allauth-->>SPA: 302 SPA callback_url (session cookie)
-    SPA->>CB: GET /auth/callback (with session cookie)
-    CB->>CB: initiate_password_login(user, request)
-    alt No 2FA step required
-        CB-->>SPA: JWT access + refresh
-    else 2FA verify (user has TOTP/passkey)
-        CB-->>SPA: session_id + requires_2fa flags
-        SPA->>API: POST /api/auth/verify (TOTP / passkey / backup)
-        API-->>SPA: JWT access + refresh
-    else Staff first login (ADMIN_2FA_REQUIRED, no 2FA yet)
-        CB-->>SPA: session_id + requires_2fa_setup
-        SPA->>API: POST /api/auth/login/setup/totp (or passkey)
-        SPA->>API: POST /api/auth/login/verify/totp (or passkey)
-        API-->>SPA: JWT access + refresh (backup_codes only for TOTP)
-    end
+    SPA->>CB: POST /api/auth/oauth/callback (session + CSRF)
+    CB->>CB: initiate_social_login(user)
+    CB-->>SPA: JWT access + refresh (requires_2fa: false)
 ```
 
 ### Step 1 — Start OAuth (browser)
@@ -503,29 +495,24 @@ No lokdown `LoginSession` or JWT exists yet.
 
 Call **`POST /api/auth/oauth/callback`** with the **session cookie** and **CSRF token** from OAuth (documented in Swagger under tag **OAuth**).
 
-Or implement a browser view at `auth_callback` that calls the same logic (`bridge_oauth_session_to_lokdown` / `initiate_password_login`). It does **not** re-check a password; it tests whether a 2FA step is required (`login_requires_2fa_step`):
+This always issues JWTs. It does **not** re-check a password and does **not** require TOTP, backup codes, or passkey — including for staff.
+
+Or implement a browser view at `auth_callback` that calls the same logic (`bridge_oauth_session_to_lokdown` / `initiate_social_login`):
 
 ```python
 @login_required
 def auth_callback(request):
     try:
-        payload = initiate_password_login(request.user, request)
+        payload = bridge_oauth_session_to_lokdown(request.user, request)
     except RuntimeError:
-        return JsonResponse({"error": "Failed to create authentication session"}, status=500)
-
-    if payload.get("requires_2fa"):
-        if payload.get("requires_2fa_setup"):
-            return redirect(f"/app/2fa/setup?session_id={payload['session_id']}")
-        return redirect(f"/app/2fa?session_id={payload['session_id']}")
+        return JsonResponse({"error": "Failed to issue authentication tokens"}, status=500)
 
     return redirect(
         f"/app/home#access_token={payload['access_token']}&refresh_token={payload['refresh_token']}"
     )
 ```
 
-**200-equivalent payloads** (same shape as `POST /api/auth/login`):
-
-**No 2FA step**
+**200 payload**
 
 ```json
 {
@@ -535,63 +522,16 @@ def auth_callback(request):
 }
 ```
 
-**2FA verify** (user already has TOTP or passkey)
-
-```json
-{
-  "session_id": "550e8400-e29b-41d4-a716-446655440000",
-  "requires_2fa": true,
-  "requires_2fa_setup": false,
-  "totp_enabled": true,
-  "passkey_enabled": true,
-  "backup_codes_available": true
-}
-```
-
-**Staff first login — 2FA setup required** (`ADMIN_2FA_REQUIRED`, staff, no TOTP/passkey yet)
-
-```json
-{
-  "session_id": "550e8400-e29b-41d4-a716-446655440000",
-  "requires_2fa": true,
-  "requires_2fa_setup": true,
-  "totp_enabled": false,
-  "passkey_enabled": false,
-  "backup_codes_available": false,
-  "totp_available": true,
-  "passkey_available": true
-}
-```
-
-Use `totp_available` / `passkey_available` to show enrollment options. Then follow [Staff first login via API](#api-workflow-staff-first-login-admin_2fa_required).
-
-### Step 4 — Complete 2FA or staff setup (if required)
-
-The `session_id` from step 3 is a lokdown `LoginSession`, not the Django session id.
-
-- If **`requires_2fa_setup: true`** → [Staff first login via API](#api-workflow-staff-first-login-admin_2fa_required) (enroll TOTP or passkey, then receive JWTs).
-- If **`requires_2fa: true`** and **`requires_2fa_setup: false`** → [login with 2FA](#api-workflow-login-with-2fa) (`POST /api/auth/verify` or `POST /api/auth/token/verify`).
-
-```http
-POST /api/auth/verify
-Content-Type: application/json
-
-{
-  "session_id": "<from callback>",
-  "totp_token": "123456"
-}
-```
-
-Passkey flow still requires `POST /api/auth/2fa/passkey/options` before verify. Use `POST /api/auth/token/verify` if your app uses the SimpleJWT key names (`access` / `refresh`).
+Store the tokens and call `/api/*` with `Authorization: Bearer <access_token>`. Do **not** send the user to `/api/auth/verify` after social login.
 
 ### Decision matrix
 
-| User state | After OAuth | Callback (`initiate_password_login`) | Client next step |
+| User state | After OAuth | Callback (`initiate_social_login`) | Client next step |
 |------------|-------------|--------------------------------------|------------------|
 | Non-staff, no 2FA | Django session | JWT immediately | Store tokens; call `/api/*` |
-| Non-staff, 2FA enabled | Django session | `session_id` + verify flags | Run 2FA verify flow |
-| Staff, no 2FA, `ADMIN_2FA_REQUIRED` | Django session | `session_id` + **`requires_2fa_setup: true`** | Run staff login setup flow |
-| Staff, 2FA enabled | Django session | `session_id` + verify flags | Run 2FA verify flow |
+| Non-staff, TOTP / passkey / backup codes enrolled | Django session | JWT immediately (no verify) | Store tokens; call `/api/*` |
+| Staff, no 2FA, `ADMIN_2FA_REQUIRED` | Django session | JWT immediately (no setup) | Store tokens; call `/api/*` |
+| Staff, 2FA enabled | Django session | JWT immediately (no verify) | Store tokens; call `/api/*` |
 | Already logged in (SPA retry) | Session exists | Middleware → `next` without OAuth | Run callback bridge again |
 
 ### New signup vs returning login
@@ -692,8 +632,7 @@ const payload = await fetch("/api/auth/oauth/callback", {
 2. POST form to `/_allauth/browser/v1/auth/provider/redirect`
 3. After OAuth, allauth redirects to your SPA `callback_url`
 4. `POST /api/auth/oauth/callback` with `credentials: 'include'` and CSRF header to obtain JWTs
-5. If `requires_2fa_setup`, run staff login setup (`/api/auth/login/setup/*` → `/api/auth/login/verify/*`)
-6. Else if `requires_2fa`, `POST /api/auth/verify` with `session_id`
+5. Store `access_token` / `refresh_token` — do **not** call `/api/auth/verify` after social login
 
 **Cross-origin SPA settings** (when API and UI are on different hosts)
 
@@ -718,17 +657,16 @@ The example project documents local dev defaults in [README.md — Local develop
 
 ### SPA implementation patterns
 
-| Pattern | OAuth start | Callback | 2FA / staff setup |
-|---------|-------------|----------|-------------------|
-| **SPA + headless (recommended)** | POST `/_allauth/browser/v1/auth/provider/redirect` with `callback_url` | SPA route calls `POST /api/auth/oauth/callback` | `requires_2fa_setup` → login setup; else `POST /api/auth/verify` |
+| Pattern | OAuth start | Callback | After callback |
+|---------|-------------|----------|----------------|
+| **SPA + headless (recommended)** | POST `/_allauth/browser/v1/auth/provider/redirect` with `callback_url` | SPA route calls `POST /api/auth/oauth/callback` | Store JWTs (`requires_2fa: false`) |
 | **Lokdown metadata helper** | `GET /api/auth/oauth/{provider}/login?callback_url=<spa-url>` → build form POST | Same | Same |
-| **Popup + callback page** | Popup opens provider URL; callback page `postMessage` to opener | Callback page reads session via server render | Opener runs verify or login setup |
-| **BFF** | Same | Callback sets HttpOnly cookies server-side | BFF proxies verify or login setup |
+| **Popup + callback page** | Popup opens provider URL; callback page `postMessage` to opener | Callback page reads session via server render | Opener stores JWTs |
+| **BFF** | Same | Callback sets HttpOnly cookies server-side | BFF stores tokens; no verify step |
 
 Requirements:
 
 - Callback and OAuth URLs must be **same-site** (or configured CSRF/trusted origins) so the session cookie is sent.
-- For `fetch` to `/api/auth/verify` after OAuth, use `credentials: 'include'` only if your API shares session cookies; otherwise pass `session_id` in JSON from the callback response (common for SPAs on another origin).
 - Use `/auth/callback` or `/oauth/callback` only for local dev; production SPAs should use `/api/auth/oauth/callback`.
 
 ### What not to do
@@ -824,7 +762,9 @@ Applies when:
 - User is staff (`is_staff=True`)
 - User has **not** yet enrolled TOTP or a passkey
 
-Password login and OAuth callback return a pending session with **`requires_2fa_setup: true`**. No JWTs are issued until enrollment completes.
+Password login returns a pending session with **`requires_2fa_setup: true`**. No JWTs are issued until enrollment completes.
+
+OAuth callback does **not** use this flow: staff who sign in with a social account receive JWTs immediately.
 
 ```mermaid
 sequenceDiagram
@@ -848,7 +788,7 @@ sequenceDiagram
     end
 ```
 
-### Step 1 — Password (or OAuth callback)
+### Step 1 — Password login
 
 ```http
 POST /api/auth/login
@@ -873,8 +813,6 @@ Content-Type: application/json
 ```
 
 **SimpleJWT:** `POST /api/auth/token` returns **401** with the same body (check `requires_2fa_setup` in the JSON).
-
-OAuth: `POST /api/auth/oauth/callback` returns the same shape when the session user is staff without 2FA.
 
 ### Step 2a — Enroll TOTP during login
 
@@ -1462,12 +1400,9 @@ See [API workflow: user API keys](#api-workflow-user-api-keys).
 |--------|------|------|-------------|
 | GET | `auth/oauth/providers` | No | JSON list of providers + headless `redirect_url`; pass `?callback_url=` SPA callback |
 | GET | `auth/oauth/<provider>/login` | No | JSON with headless redirect metadata; set `callback_url` to your SPA route |
-| POST | `auth/oauth/callback` | Yes (session + CSRF) | **Primary SPA bridge** — JSON only; JWT or pre-2FA `session_id` |
+| POST | `auth/oauth/callback` | Yes (session + CSRF) | **Primary SPA bridge** — JSON only; always JWTs (`requires_2fa: false`) |
 
-After `POST auth/oauth/callback` returns `requires_2fa: true`, branch on `requires_2fa_setup`:
-
-- **`requires_2fa_setup: true`** → staff login setup endpoints (`auth/login/setup/*`, `auth/login/verify/*`)
-- **`requires_2fa_setup: false`** → `POST auth/verify` (or `auth/token/verify`)
+Social login never requires TOTP, backup codes, or passkey. Store the tokens from `POST auth/oauth/callback` and call `/api/*`. Do not send the user to `auth/verify` or staff login setup after OAuth.
 
 See [OAuth workflow](#api-workflow-login-with-external-provider-oauth).
 
@@ -1531,7 +1466,7 @@ Cookie: sessionid=...; csrftoken=...
 X-CSRFToken: <csrftoken>
 ```
 
-**200** (no lokdown 2FA)
+**200**
 
 ```json
 {
@@ -1541,35 +1476,7 @@ X-CSRFToken: <csrftoken>
 }
 ```
 
-**200** (2FA verify required)
-
-```json
-{
-  "requires_2fa": true,
-  "requires_2fa_setup": false,
-  "session_id": "550e8400-e29b-41d4-a716-446655440000",
-  "totp_enabled": true,
-  "passkey_enabled": false,
-  "backup_codes_available": true
-}
-```
-
-**200** (staff first login — setup required)
-
-```json
-{
-  "requires_2fa": true,
-  "requires_2fa_setup": true,
-  "session_id": "550e8400-e29b-41d4-a716-446655440000",
-  "totp_enabled": false,
-  "passkey_enabled": false,
-  "backup_codes_available": false,
-  "totp_available": true,
-  "passkey_available": true
-}
-```
-
-**401** — no session (OAuth not completed). **500** — failed to create `LoginSession`.
+**401** — no session (OAuth not completed). **500** — failed to issue tokens.
 
 For cross-origin SPAs, call this endpoint from your frontend callback route with `fetch(..., { credentials: 'include' })`. Configure `CSRF_TRUSTED_ORIGINS` and `CORS_ALLOW_CREDENTIALS` on Django. Returns JSON only — no HTML template.
 
@@ -1607,7 +1514,7 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 9. **`security_audit --cleanup`** — Dry-run by default; pass `--force` with `--cleanup` to delete expired sessions, old failed backup attempts, and stale passkeys.
 10. **Social auth checks** — `lokdown.W003`/`W004`/`W006` apply only when `LOKDOWN_SOCIALAUTH_ENABLED` is `True`, `"allauth"` is in `INSTALLED_APPS`, and providers are configured; projects without OAuth can omit allauth entirely.
 11. **Admin 2FA enrollment** — `lokdown.W005` warns when `ADMIN_2FA_REQUIRED` is `True` but both `LOKDOWN_TOTP_ENABLED` and `LOKDOWN_PASSKEY_ENABLED` are `False`.
-12. **Staff API first login** — When `ADMIN_2FA_REQUIRED = True`, staff cannot obtain JWTs via the API until TOTP or passkey enrollment completes during login. This mirrors the Django admin portal behaviour.
+12. **Staff API first login** — When `ADMIN_2FA_REQUIRED = True`, staff cannot obtain JWTs via **password** API login until TOTP or passkey enrollment completes during login. This mirrors the Django admin portal behaviour. Social/OAuth login still issues JWTs immediately.
 
 ---
 
@@ -1615,8 +1522,8 @@ For cross-origin SPAs, call this endpoint from your frontend callback route with
 
 - [ ] Set `LOKDOWN_FERNET_KEY` in production (generate with `Fernet.generate_key()` from `cryptography`).
 - [ ] Include `path("api/", include("lokdown.urls"))` and call `override_admin_urls()`.
-- [ ] Branch on `requires_2fa` after password login (or OAuth callback).
-- [ ] If `requires_2fa_setup: true`, run staff login setup (`auth/login/setup/*` → `auth/login/verify/*`); do not call `auth/verify` until 2FA is enrolled.
+- [ ] Branch on `requires_2fa` after **password** login.
+- [ ] If `requires_2fa_setup: true` (password login only), run staff login setup (`auth/login/setup/*` → `auth/login/verify/*`); do not call `auth/verify` until 2FA is enrolled.
 - [ ] For passkey login (verify flow): call `passkey/options` before `verify`.
 - [ ] Store JWT; refresh via `auth/token/refresh`.
 - [ ] On 2FA setup: call `setup/totp` then `verify/totp` with only `totp_token` (pending secret is stored server-side); store returned `backup_codes` immediately.
@@ -1641,10 +1548,11 @@ To customize behaviour without duplicating controllers:
 
 | Function | Module | Use |
 |----------|--------|-----|
-| `initiate_password_login` | `auth_flow_helper` | After password auth **or** OAuth callback; returns JWTs, verify session, or staff setup session |
-| `login_requires_2fa_step` / `staff_must_setup_2fa` | `auth_flow_helper` | Whether login must continue with verify or enrollment |
+| `initiate_password_login` | `auth_flow_helper` | After password auth; returns JWTs, verify session, or staff setup session |
+| `initiate_social_login` | `auth_flow_helper` | After OAuth; always returns JWTs (no TOTP / backup / passkey) |
+| `login_requires_2fa_step` / `staff_must_setup_2fa` | `auth_flow_helper` | Whether **password** login must continue with verify or enrollment |
 | `complete_staff_login_totp_setup` / `complete_staff_login_passkey_setup` | `auth_flow_helper` | Staff first-login enrollment + JWT issuance |
-| `bridge_oauth_session_to_lokdown` | `socialauth_controller` | Thin wrapper around `initiate_password_login` for OAuth bridge |
+| `bridge_oauth_session_to_lokdown` | `socialauth_controller` | Thin wrapper around `initiate_social_login` for OAuth bridge |
 | `OAuthProviderRedirectSerializer.for_provider` | `serializers/socialauth.py` | Validated headless redirect metadata for OpenAPI |
 | `build_oauth_redirect_metadata` | `socialauth/callback_url.py` | Resolve + validate `callback_url`, build provider payload |
 | `verify_second_factor` | `auth_flow_helper` | Second factor during API login |
