@@ -1,4 +1,4 @@
-"""OAuth callback: bridge django-allauth session to lokdown JWT / pre-2FA session."""
+"""OAuth callback: bridge django-allauth session to lokdown JWTs (no 2FA step)."""
 
 import json
 
@@ -14,15 +14,15 @@ from lokdown.control.socialauth_controller import bridge_oauth_session_to_lokdow
 @require_GET
 def auth_callback(request):
     """
-    After Google/GitHub OAuth, issue lokdown tokens or a pending 2FA session_id.
+    After Google/GitHub OAuth, issue lokdown JWTs (no TOTP, backup, or passkey step).
 
     ?format=json returns raw JSON (for API clients). Default is an HTML debug page.
-    Same logic as GET /api/auth/oauth/callback.
+    Same logic as POST /api/auth/oauth/callback.
     """
     try:
         payload = bridge_oauth_session_to_lokdown(request.user, request)
     except RuntimeError:
-        return HttpResponse("Failed to create lokdown authentication session", status=500)
+        return HttpResponse("Failed to issue lokdown authentication tokens", status=500)
 
     if request.GET.get("format") == "json":
         return HttpResponse(

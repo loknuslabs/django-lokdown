@@ -49,6 +49,15 @@ def user_with_totp(user, totp_secret):
 
 
 @pytest.fixture
+def staff_user_with_totp(staff_user, totp_secret):
+    two_fa = get_or_create_totp(staff_user)
+    two_fa.totp_secret = write_stored_secret(totp_secret)
+    two_fa.save(update_fields=["totp_secret"])
+    store_backup_codes(staff_user, ["BACKUP01", "BACKUP02"])
+    return staff_user
+
+
+@pytest.fixture
 def valid_totp_token(totp_secret):
     return pyotp.TOTP(totp_secret).now()
 

@@ -15,6 +15,7 @@ from lokdown.helpers.auth_flow_helper import (
     create_authentication_session,
     disable_user_2fa,
     initiate_password_login,
+    initiate_social_login,
     validate_session_data,
     verify_second_factor,
 )
@@ -81,6 +82,80 @@ class TestInitiatePasswordLogin:
 
         session = LoginSession.objects.get(session_id=payload["session_id"])
         assert session.is_authenticated is False
+
+
+def _assert_social_jwt_payload(payload, user):
+    assert payload["requires_2fa"] is False
+    assert payload.get("requires_2fa_setup") is None
+    assert "access_token" in payload
+    assert "refresh_token" in payload
+    assert "session_id" not in payload
+    assert LoginSession.objects.filter(user=user).count() == 0
+
+
+@pytest.mark.django_db
+class TestInitiateSocialLogin:
+    def test_returns_tokens_when_2fa_off(self, user):
+        payload = initiate_social_login(user)
+        _assert_social_jwt_payload(payload, user)
+
+    def test_skips_totp_and_backup_codes(self, user_with_totp):
+        payload = initiate_social_login(user_with_totp)
+        _assert_social_jwt_payload(payload, user_with_totp)
+
+    def test_skips_passkey(self, user_with_passkey):
+        payload = initiate_social_login(user_with_passkey)
+        _assert_social_jwt_payload(payload, user_with_passkey)
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_without_2fa_skips_setup(self, staff_user):
+        payload = initiate_social_login(staff_user)
+        _assert_social_jwt_payload(payload, staff_user)
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_with_totp_skips_verify(self, staff_user_with_totp):
+        payload = initiate_social_login(staff_user_with_totp)
+        _assert_social_jwt_payload(payload, staff_user_with_totp)
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_with_passkey_skips_verify(self, staff_user):
+        from webauthn.helpers import bytes_to_base64url
+
+        from lokdown.models import PasskeyCredential
+
+        PasskeyCredential.objects.create(
+            user=staff_user,
+            credential_id=bytes_to_base64url(b"staff-social-credential-id"),
+            public_key="dGVzdC1wdWJsaWMta2V5",
+            sign_count=0,
+            rp_id="localhost",
+            user_handle=str(staff_user.id),
+        )
+        payload = initiate_social_login(staff_user)
+        _assert_social_jwt_payload(payload, staff_user)
+
+    @override_settings(ADMIN_2FA_REQUIRED=False)
+    def test_staff_without_2fa_when_admin_2fa_not_required(self, staff_user):
+        payload = initiate_social_login(staff_user)
+        _assert_social_jwt_payload(payload, staff_user)
+
+    def test_does_not_follow_password_login_2fa_rules(self, user_with_totp):
+        password_payload = initiate_password_login(user_with_totp, None)
+        social_payload = initiate_social_login(user_with_totp)
+        assert password_payload["requires_2fa"] is True
+        assert "access_token" not in password_payload
+        assert social_payload["requires_2fa"] is False
+        assert "access_token" in social_payload
+        assert "session_id" not in social_payload
+
+    @override_settings(ADMIN_2FA_REQUIRED=True)
+    def test_staff_password_login_still_requires_2fa(self, staff_user_with_totp):
+        password_payload = initiate_password_login(staff_user_with_totp, None)
+        social_payload = initiate_social_login(staff_user_with_totp)
+        assert password_payload["requires_2fa"] is True
+        assert "access_token" not in password_payload
+        assert social_payload["requires_2fa"] is False
+        assert "access_token" in social_payload
 
 
 @pytest.mark.django_db

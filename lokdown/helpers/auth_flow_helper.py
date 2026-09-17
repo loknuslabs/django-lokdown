@@ -102,7 +102,7 @@ def staff_must_setup_2fa(user: User) -> bool:
 
 
 def login_requires_2fa_step(user: User) -> bool:
-    """True when password/OAuth login must continue with verify or enrollment."""
+    """True when password login must continue with verify or enrollment."""
     return is_2fa_enabled(user) or staff_must_setup_2fa(user)
 
 
@@ -176,6 +176,16 @@ def initiate_password_login(user: User, request) -> dict[str, Any]:
     if staff_must_setup_2fa(user):
         return build_pre_2fa_setup_payload(user, session_id)
     return build_pre_2fa_payload(user, session_id)
+
+
+def initiate_social_login(user: User) -> dict[str, Any]:
+    """After successful OAuth, issue JWTs without TOTP, backup codes, or passkey.
+
+    The identity provider already authenticated the user. Lokdown does not require
+    a second factor on this path, including for staff when ``ADMIN_2FA_REQUIRED``.
+    Password login still uses ``initiate_password_login``.
+    """
+    return build_jwt_token_payload(user)
 
 
 def complete_staff_login_totp_setup(

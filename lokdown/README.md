@@ -551,7 +551,7 @@ Provider redirect URIs in Google/GitHub consoles use the **Django host**:
 2. POST form to `/_allauth/browser/v1/auth/provider/redirect` (synchronous submit, not XHR)
 3. After OAuth, allauth redirects to your SPA `callback_url`
 4. `POST /api/auth/oauth/callback` with `credentials: "include"` and CSRF — session cookie auth, not Bearer JWT
-5. If `requires_2fa`, `POST /api/auth/verify` with `session_id`
+5. Store JWTs (`requires_2fa` is always `false` after social login)
 
 ```javascript
 // Discover providers
@@ -591,7 +591,7 @@ See [docs/AUTHENTICATION.md — SPA-only frontend](docs/AUTHENTICATION.md#spa-on
 |--------|------|------|-------------|
 | GET | `/api/auth/oauth/providers` | None | List providers + headless redirect metadata |
 | GET | `/api/auth/oauth/{provider}/login` | None | Single provider headless redirect metadata |
-| POST | `/api/auth/oauth/callback` | Django session + CSRF | Session → JWT or `session_id` |
+| POST | `/api/auth/oauth/callback` | Django session + CSRF | Session → JWT (`requires_2fa: false`) |
 
 ---
 
