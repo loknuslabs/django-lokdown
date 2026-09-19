@@ -19,6 +19,14 @@ def clear_cache():
     cache.clear()
 
 
+@pytest.fixture(autouse=True)
+def clear_socialauth_password_stash():
+    from lokdown.socialauth.password_preservation import clear_stashed_passwords
+
+    yield
+    clear_stashed_passwords()
+
+
 @pytest.fixture
 def user(db):
     return User.objects.create_user(username="testuser", password="testpass123", email="test@example.com")
