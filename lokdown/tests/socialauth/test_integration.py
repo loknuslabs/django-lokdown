@@ -1,6 +1,8 @@
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from allauth.socialaccount.models import SocialAccount
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.test import Client, override_settings
 from django.urls import reverse
@@ -35,6 +37,7 @@ class TestDummyProviderIntegration:
         assert response.status_code == 302
         user = User.objects.get(email="oauth.user@example.com")
         assert user.username == "oauth.user@example.com"
+        assert not user.has_usable_password()
 
     @override_settings(SOCIALACCOUNT_LOGIN_ON_GET=True, HEADLESS_ONLY=False, LOKDOWN_ALLOW_PUBLIC_REGISTRATION=False)
     def test_dummy_signup_blocked_when_public_registration_disabled(self):
@@ -52,6 +55,48 @@ class TestDummyProviderIntegration:
         )
         assert response.status_code in (302, 403, 200)
         assert not User.objects.filter(email="blocked.user@example.com").exists()
+
+    @override_settings(
+        SOCIALACCOUNT_LOGIN_ON_GET=True,
+        HEADLESS_ONLY=False,
+        LOKDOWN_ALLOW_PUBLIC_REGISTRATION=False,
+        SOCIALACCOUNT_EMAIL_AUTHENTICATION=True,
+        SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT=True,
+        ACCOUNT_EMAIL_VERIFICATION="optional",
+        ADMIN_2FA_REQUIRED=True,
+    )
+    def test_email_auth_keeps_password_and_admin_login(self):
+        user = User.objects.create_user(
+            username="staffuser",
+            password="staffpass123",
+            email="staff@example.com",
+            is_staff=True,
+        )
+        client = Client()
+        login_response = client.get(reverse("dummy_login"))
+        state = parse_qs(urlparse(login_response.url).query)["state"][0]
+        auth_url = f"{reverse('dummy_authenticate')}?state={state}"
+        response = client.post(
+            auth_url,
+            data={
+                "id": 7,
+                "email": "staff@example.com",
+                "email_verified": "on",
+            },
+        )
+        assert response.status_code == 302
+        user.refresh_from_db()
+        assert SocialAccount.objects.filter(user=user, provider="dummy").exists()
+        assert user.has_usable_password()
+        assert authenticate(username="staffuser", password="staffpass123") == user
+
+        client.logout()
+        admin_response = client.post(
+            reverse("admin_login"),
+            {"username": "staffuser", "password": "staffpass123"},
+        )
+        assert admin_response.status_code == 302
+        assert admin_response.url == reverse("admin_2fa_setup")
 
     def test_google_login_url_resolves(self):
         assert reverse("google_login") == "/accounts/google/login/"
