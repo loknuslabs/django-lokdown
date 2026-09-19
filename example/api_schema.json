@@ -2,7 +2,7 @@
     "openapi": "3.0.3",
     "info": {
         "title": "Django Lokdown",
-        "version": "1.4.2",
+        "version": "1.4.3",
         "contact": {
             "name": "Loknus Labs LLC",
             "email": "loknuslabs@gmail.com",
