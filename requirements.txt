@@ -15,7 +15,7 @@ django-allauth[headless]>=65.18.0
 
 # Example app and development tools (see pyproject.toml [project.optional-dependencies.dev])
 django-cors-headers>=4.9.0
-black==26.5.1
+black==26.10.1
 flake8>=7.3.0
 mypy>=1.19.0
 django-stubs>=5.2.0
